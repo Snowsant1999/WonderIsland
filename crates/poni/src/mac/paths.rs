@@ -51,7 +51,8 @@ pub fn phone_inbox_dir() -> PathBuf {
     }
     let downloads = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from(".")).join("Downloads");
     let before_rename = downloads.join("Oyen Poni");
-    if before_rename.is_dir() { before_rename } else { downloads.join("Oyenza Studio") }
+    let oyenza = downloads.join("Oyenza Studio");
+    if before_rename.is_dir() { before_rename } else if oyenza.is_dir() { oyenza } else { downloads.join("WonderIsland") }
 }
 
 /// Where the Downloader saves videos and sound: `~/Downloads`, as a browser
@@ -76,7 +77,9 @@ pub fn notes_dir() -> PathBuf {
     if let Some(h) = home_override() {
         return h.join("notes-saved");
     }
-    std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from(".")).join("Documents").join("Oyenza Studio").join("Notes")
+    let docs = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from(".")).join("Documents");
+    let oyenza = docs.join("Oyenza Studio").join("Notes");
+    if oyenza.is_dir() { oyenza } else { docs.join("WonderIsland").join("Notes") }
 }
 
 pub fn lyrics_cache_dir() -> PathBuf {

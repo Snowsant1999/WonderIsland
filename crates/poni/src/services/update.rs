@@ -53,12 +53,8 @@ pub fn check_job(sink: EventSink) -> Job {
     })
 }
 
-fn check(client: &Client) -> Result<Release, String> {
-    let (status, body) = client.get_bytes(update::FEED_URL, TIMEOUT, update::MAX_FILE_BYTES, |_| {}).map_err(|e| e.to_string())?;
-    if status != 200 {
-        return Err(format!("HTTP {status}"));
-    }
-    believe(std::str::from_utf8(&body).map_err(|_| "not text".to_string())?)
+fn check(_client: &Client) -> Result<Release, String> {
+    Err("updates disabled in WonderIsland".into())
 }
 
 /// The file's text to the release it describes, once its signature checks out.
@@ -135,7 +131,7 @@ pub fn install(setup: &std::path::Path, d: &update::Download) -> Result<(), Stri
 #[cfg(target_os = "macos")]
 const BUNDLE_ID: &str = "com.oyenza.poni";
 
-/// The app bundle this copy runs from ("/Applications/Oyenza Studio.app"),
+/// The app bundle this copy runs from ("/Applications/WonderIsland.app"),
 /// if it runs from one.
 #[cfg(target_os = "macos")]
 fn running_bundle() -> Option<PathBuf> {
@@ -224,7 +220,7 @@ fn check_app(app: &Path, version: &str) -> Result<(), String> {
     let plist = app.join("Contents/Info.plist");
     let key = |k: &str| output(Command::new("/usr/bin/plutil").args(["-extract", k, "raw", "-o", "-"]).arg(&plist));
     if key("CFBundleIdentifier")?.trim() != BUNDLE_ID {
-        return Err("it isn't Oyenza Studio".into());
+        return Err("it isn't WonderIsland".into());
     }
     let v = key("CFBundleShortVersionString")?;
     if v.trim() != version {
@@ -258,7 +254,7 @@ pub fn install(app: &Path, version: &str) -> Result<(), String> {
     check_app(app, version)?;
     let folder = bundle.parent().ok_or("no folder")?;
     // A hidden copy in the same folder (so on the same disk), swapped in.
-    let next = folder.join(".Oyenza Studio update.app");
+    let next = folder.join(".WonderIsland update.app");
     let _ = std::fs::remove_dir_all(&next);
     run("ditto", Command::new("/usr/bin/ditto").arg(app).arg(&next))?;
     let old = match swap(&next, &bundle) {
@@ -289,7 +285,7 @@ fn swap(next: &Path, bundle: &Path) -> Result<(), String> {
     }
     let swap_err = std::io::Error::last_os_error();
     crate::pinfo!("updates: couldn't swap in one step ({swap_err}); moving the two apps");
-    let aside = bundle.with_file_name(".Oyenza Studio old.app");
+    let aside = bundle.with_file_name(".WonderIsland old.app");
     let _ = std::fs::remove_dir_all(&aside);
     std::fs::rename(bundle, &aside).map_err(|e| format!("macOS didn't let this copy move ({e})"))?;
     if let Err(e) = std::fs::rename(next, bundle) {
@@ -316,7 +312,7 @@ fn reopen(app: &Path, old: &Path) {
         .process_group(0)
         .spawn();
     if let Err(e) = spawned {
-        // The new version is in place: it opens when Oyenza Studio is next opened.
+        // The new version is in place: it opens when WonderIsland is next opened.
         crate::pwarn!("updates: couldn't arrange the reopen ({e})");
     }
 }

@@ -83,9 +83,9 @@ const BOLT_VISIBLE: f32 = BOLT * 14.0 / 24.0;
 const BADGE_GAP: f32 = 6.0;
 /// Oyen theme: the head's width (DIPs) in the idle "Oyen" look, beside the
 /// idle clock and in the media pill, and the clock pill's extra width for him.
-const OYEN_IDLE_W: f32 = 30.0;
-const OYEN_CLOCK_W: f32 = 22.0;
-const OYEN_MEDIA_W: f32 = 24.0;
+const OYEN_IDLE_W: f32 = 42.0;
+const OYEN_CLOCK_W: f32 = 26.0;
+const OYEN_MEDIA_W: f32 = 34.0;
 const OYEN_CLOCK_LEAD: f32 = 12.0 + OYEN_CLOCK_W;
 /// The countdown before a prayer: the moon, then "Maghrib 10 min" (152,
 /// its words' room), then its OK.
@@ -431,7 +431,7 @@ fn draw_idle(ui: &mut Ui, st: &mut AppState, body: Rect) {
         IdleStyle::Clock | IdleStyle::Status => {
             // Oyen theme: he peeks on the left and the clock centres in the rest.
             let body = if oyen::on(st.settings.theme) {
-                draw_oyen_rest(ui, st, body, body.x + 11.0 + OYEN_CLOCK_W / 2.0, OYEN_CLOCK_W, body.bottom() - 5.0);
+                draw_oyen_rest(ui, st, body, body.x + 11.0 + OYEN_CLOCK_W / 2.0, OYEN_CLOCK_W, body.bottom() - 3.0);
                 Rect::new(body.x + OYEN_CLOCK_LEAD, body.y, body.w - OYEN_CLOCK_LEAD, body.h)
             } else {
                 body
@@ -463,7 +463,7 @@ fn draw_idle(ui: &mut Ui, st: &mut AppState, body: Rect) {
             ui.c.text(&time, Rect::new(x0 + bw + BADGE_GAP, body.y, tw + 2.0, body.h), &ts);
         }
         IdleStyle::Eyes if oyen::on(st.settings.theme) => {
-            draw_oyen_rest(ui, st, body, body.center().x, OYEN_IDLE_W, body.bottom() - 7.0);
+            draw_oyen_rest(ui, st, body, body.center().x, OYEN_IDLE_W, body.bottom() - 3.0);
         }
         IdleStyle::Eyes => {
             // Eyes glance toward the cursor while hovering.
@@ -578,7 +578,7 @@ pub fn draw_music(ui: &mut Ui, st: &mut AppState, body: Rect, words: bool) {
         // Oyen bops to the music where the equalizer would be, and a
         // note floats up beside him on every beat (the ones on his
         // left make way for the words: the sung line or the title).
-        let (cx, bar_y) = (body.right() - 26.0, body.bottom() - 5.0);
+        let (cx, bar_y) = (body.right() - 28.0, body.bottom() - 2.5);
         st.ui.notes.step(st.now, playing);
         let sky = Rect::new(body.x, body.y + 1.0, body.w, body.h - 1.0);
         oyen::notes(ui.c, &st.ui.notes, st.now, cx, bar_y, sky, 1.0 - alpha);
@@ -1097,7 +1097,7 @@ mod tests {
         let mut st = playing(Some("[00:10.00]紙の舟よ\n[00:14.00]Paper boats\n"));
         assert_eq!(geom(&media, &st).h, 32.0, "no readings: one row");
         st.lyrics.ruby = vec![vec![Ruby { text: "紙の舟よ".into(), roman: "kami no fune yo".into() }], Vec::new()];
-        for theme in [Theme::Classic, Theme::Oyen, Theme::Glass, Theme::Pill] {
+        for theme in [Theme::Wonderland] {
             st.settings.theme = theme;
             assert_eq!(geom(&media, &st).h, crate::pill::media::H_READS, "{theme:?}: the line over its reading");
         }
@@ -1274,7 +1274,7 @@ mod tests {
         use poni_core::settings::Theme;
         let m = Mode::Activity(Activity::Download);
         let mut st = with_downloads(AppState::new(Settings::default(), Store::default()), 1);
-        for theme in [Theme::Classic, Theme::Oyen, Theme::Glass, Theme::Pill] {
+        for theme in [Theme::Wonderland] {
             st.settings.theme = theme;
             assert!(!is_live(&m, &st), "{theme:?}");
             assert_eq!(next_wake(&m, &st), None, "{theme:?}: it repaints as yt-dlp reports");
@@ -1299,14 +1299,14 @@ mod tests {
         st.downloads.apply(id, Line::Progress { done: 12_400_000, total: Some(45_100_000), speed: Some(2.1e6), eta_s: Some(14) });
         let DownloadView { fraction: Some(f), count: 1 } = download_view(&st) else { panic!("{:?}", download_view(&st)) };
         assert_eq!(download_pct(f), "27%");
-        for theme in [Theme::Classic, Theme::Pill] {
+        for theme in [Theme::Wonderland] {
             st.settings.theme = theme;
             assert_eq!(geom(&m, &st).w, DOWNLOAD_W, "{theme:?}");
         }
         // A second one, queued: the count shows beside the mark.
         add(&mut st, "https://archive.org/details/BigBuckBunny_124");
         assert!(download_many(&st));
-        for theme in [Theme::Classic, Theme::Oyen, Theme::Glass, Theme::Pill] {
+        for theme in [Theme::Wonderland] {
             st.settings.theme = theme;
             assert_eq!(geom(&m, &st).w, DOWNLOAD_MANY_W, "{theme:?}");
         }

@@ -118,7 +118,7 @@ mod tests {
 
     #[test]
     fn the_card_fits_its_page_with_every_corner_round() {
-        let st = state(Theme::Pill);
+        let st = state(Theme::Wonderland);
         for p in PageKind::ALL {
             let g = activities::geom(&Mode::Expanded(p), &st);
             // The window is laid out for the tallest page with Classic's sum.

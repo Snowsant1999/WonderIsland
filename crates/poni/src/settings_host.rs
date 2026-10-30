@@ -96,7 +96,7 @@ impl SettingsWindow {
             CreateWindowExW(
                 WS_EX_LAYERED | WS_EX_APPWINDOW,
                 CLASS,
-                w!("Oyenza Studio Settings"),
+                w!("WonderIsland Settings"),
                 WS_POPUP | WS_SYSMENU | WS_MINIMIZEBOX,
                 x,
                 y,

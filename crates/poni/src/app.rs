@@ -8,7 +8,6 @@ use crate::events::{AppEvent, AppleMusicStatus, EventSink, OyenzaEvent, SendHwnd
 use crate::gfx::{px_rect, px_union, scale_about, union_rect, Canvas, Gfx, HitMask};
 use crate::icons::Icon;
 use crate::island::{Geom, Island, SHOULDER};
-use crate::oyen;
 use crate::pages::{self, PageKind};
 use crate::paths;
 use crate::pill;
@@ -1234,12 +1233,8 @@ impl App {
                 if msg == WM_SETTINGCHANGE {
                     self.glass.app_light = services::apps_use_light_theme();
                 }
-                if msg == WM_SETTINGCHANGE && self.st.settings.theme == Theme::Glass {
-                    self.st.accent = theme_accent(Theme::Glass);
-                } else if msg == WM_SETTINGCHANGE && !oyen::on(self.st.settings.theme) {
-                    if let Some(a) = services::system_accent() {
-                        self.st.accent = a;
-                    }
+                if msg == WM_SETTINGCHANGE {
+                    self.st.accent = poni_core::look::POCKET_WATCH_GOLD;
                 }
                 Some(LRESULT(0))
             }
@@ -3550,7 +3545,7 @@ impl App {
         // Glass: copy the screen under the window while the GPU draws (the
         // self-test brings its own backdrop), then draw this frame's glass
         // before the frame starts. The look follows the glass, light or dark.
-        let glass_theme = self.st.settings.theme == Theme::Glass;
+        let glass_theme = false;
         let window_px = RECT { left: self.surface.x, top: self.surface.y, right: self.surface.x + sw, bottom: self.surface.y + sh };
         // Only while someone can see it: not while hidden, locked or the display
         // is off. Not over a full-screen app either: copying a game's screen
@@ -5301,14 +5296,8 @@ impl App {
 }
 
 /// Oyen's orange in his theme, Windows' accent colour otherwise.
-fn theme_accent(theme: Theme) -> Color {
-    if oyen::on(theme) {
-        oyen::ORANGE
-    } else if theme == Theme::Glass {
-        services::system_accent_base().unwrap_or(palette::BLUE)
-    } else {
-        services::system_accent().unwrap_or(palette::BLUE)
-    }
+fn theme_accent(_theme: Theme) -> Color {
+    poni_core::look::POCKET_WATCH_GOLD
 }
 
 /// The island's current content: a page (expanded) or the collapsed activity.

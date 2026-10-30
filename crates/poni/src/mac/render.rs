@@ -359,19 +359,9 @@ pub fn run(dir: &str, args: &[String]) -> i32 {
         eprintln!("render: {}: {e}", out.display());
         return 2;
     }
-    let theme = match args.iter().position(|a| a == "--theme").and_then(|i| args.get(i + 1)).map(|s| s.as_str()) {
-        Some("oyen") => Theme::Oyen,
-        Some("glass") => Theme::Glass,
-        Some("pill") => Theme::Pill,
-        _ => Theme::Classic,
-    };
+    let theme = Theme::Wonderland;
     let notch = args.iter().any(|a| a == "--notch").then_some(Notch::MACBOOK);
-    let name = match theme {
-        Theme::Classic => "",
-        Theme::Oyen => "-oyen",
-        Theme::Glass => "-glass",
-        Theme::Pill => "-pill",
-    };
+    let name = "";
     let suffix = format!("{name}{}", if notch.is_some() { "-notch" } else { "" });
     // A home of its own, so add-ons on this Mac don't change the pictures.
     let home = std::env::temp_dir().join("poni-render-home");
@@ -818,7 +808,7 @@ fn base_state(theme: Theme) -> AppState {
     st.now = NOW_MONO;
     st.unix = NOW_UNIX;
     st.local = LocalDateTime { year: 2026, month: 10, day: 24, hour: 9, minute: 41, second: 0 };
-    st.accent = if theme == Theme::Oyen { crate::oyen::ORANGE } else { palette::BLUE };
+    st.accent = crate::look::POCKET_WATCH_GOLD;
     st.volume = VolumeState { level: 0.64, muted: false, known: true };
     st.power = PowerState { has_battery: true, percent: 76, charging: false, on_ac: false, saver: false };
     st.stats = SysStats { valid: true, cpu: 0.23, mem_used: 9 << 30, mem_total: 16 << 30, disk_free: 212 << 30, disk_total: 476 << 30, uptime_s: 3 * 86_400 + 4 * 3600 };

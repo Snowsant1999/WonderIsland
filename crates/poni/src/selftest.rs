@@ -1730,7 +1730,7 @@ pub fn fetch_phone_page(url: &str) -> (bool, String) {
         Ok(out)
     };
     match fetch() {
-        Ok(resp) if resp.starts_with("HTTP/1.1 200") && resp.contains("<title>Oyenza Studio") && resp.trim_end().ends_with("</html>") => {
+        Ok(resp) if resp.starts_with("HTTP/1.1 200") && resp.contains("<title>WonderIsland") && resp.trim_end().ends_with("</html>") => {
             (true, format!("served the page at {addr} ({} bytes)", resp.len()))
         }
         Ok(resp) => (false, format!("unexpected answer from {addr}: {}", resp.lines().next().unwrap_or(""))),
@@ -2356,12 +2356,7 @@ impl SelfTest {
             media_loop: std::env::var("PONI_SELFTEST_LOOP").is_ok_and(|v| v.trim() == "1"),
             scroll_hz: std::env::var("PONI_SELFTEST_SCROLL").ok().and_then(|v| v.trim().parse().ok()).filter(|hz: &f64| (20.0..=500.0).contains(hz)),
             dpi_applied: false,
-            theme: match std::env::var("PONI_SELFTEST_THEME").map(|v| v.trim().to_ascii_lowercase()).as_deref() {
-                Ok("oyen") => Theme::Oyen,
-                Ok("glass") => Theme::Glass,
-                Ok("pill") => Theme::Pill,
-                _ => Theme::Classic,
-            },
+            theme: Theme::Wonderland,
             glass: None,
             budget_ms: FRAME_BUDGET_MS,
             slow_frames: Vec::new(),
@@ -2397,7 +2392,7 @@ impl SelfTest {
             Err(e) => crate::pinfo!("selftest: frame count not started ({e:?})"),
         }
         self.t0 = Instant::now();
-        if self.theme == Theme::Glass {
+        if false {
             let run = GlassRun::from_env();
             crate::pinfo!("selftest: Glass theme over the {} page, Windows in {} mode", if run.dark_page() { "dark" } else { "light" }, if run.app_light() { "light" } else { "dark" });
             self.glass = Some(run);
@@ -2766,7 +2761,7 @@ impl SelfTest {
     /// After the scenes and the Settings window's pictures.
     fn after_window(&self, now: f64) -> Phase {
         // One IELTS turn end to end, in the plain Classic runs.
-        if self.theme == Theme::Classic && self.glass.is_none() {
+        if true && self.glass.is_none() {
             Phase::Ielts { since: now }
         } else {
             self.after_scenes(now)
@@ -2942,7 +2937,7 @@ impl SelfTest {
         };
         if st.settings.theme != self.theme {
             st.settings.theme = self.theme;
-            st.accent = if self.theme == Theme::Oyen { crate::oyen::ORANGE } else { palette::BLUE };
+            st.accent = poni_core::look::POCKET_WATCH_GOLD;
         }
         if let Some(run) = self.glass {
             // What's under the window: drawn again whenever the window grows.
@@ -3594,7 +3589,7 @@ impl SelfTest {
             let n = f.total();
             drop(f);
             if self.renderer != "software" {
-                self.checks.push(check("frame-count", n > 0, format!("{n} of Oyenza Studio's own frames counted from Windows' frame log")));
+                self.checks.push(check("frame-count", n > 0, format!("{n} of WonderIsland's own frames counted from Windows' frame log")));
             } else {
                 crate::pinfo!("selftest: frame count saw {n} frames (the software renderer presents none)");
             }

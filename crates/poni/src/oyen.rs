@@ -9,7 +9,8 @@
 //! Moods only ever follow what the island is doing (resting, music, the
 //! cursor, the night), never an amount of money.
 
-use crate::gfx::Canvas;
+use crate::gfx::{Canvas, Image, ImageData};
+use windows::Foundation::Numerics::Matrix3x2;
 use poni_core::geom::{Color, Point, Rect};
 use poni_core::oyen::{self, Affine, Element, Frame, Input, Mood, Paint, Path, Place};
 use poni_core::settings::Theme;
@@ -18,14 +19,18 @@ use std::f32::consts::TAU;
 use std::f64::consts::PI;
 use std::sync::OnceLock;
 
-/// Oyen's orange: the theme's accent.
-pub const ORANGE: Color = Color::hex(oyen::ORANGE);
-const FOLD: Color = Color::hex(oyen::FOLD_ORANGE);
-const INK: Color = Color::hex(oyen::INK);
+/// Cheshire pastel periwinkle blue: secondary mascot mark.
+pub const CHESHIRE_BLUE: Color = Color::hex(0x94A8E0);
+pub const CHESHIRE_FOLD: Color = Color::hex(0x6E85C2);
+pub const CHESHIRE_INK: Color = Color::hex(0x1E2A4A);
+
+pub const ORANGE: Color = CHESHIRE_BLUE;
+const FOLD: Color = CHESHIRE_FOLD;
+const INK: Color = CHESHIRE_INK;
 const PINK: Color = Color::hex(oyen::PINK);
 const GREEN: Color = Color::hex(oyen::GREEN);
-/// The Oyenza app icon's ground.
-const ICON_TILE: Color = Color::hex(0x171717);
+/// The WonderIsland app icon's ground (Alice Blue).
+const ICON_TILE: Color = Color::hex(0xF0F8FF);
 /// Shapes that float around the head (thinking dots, z's) are ink on a light
 /// page; on the black island they need to be light.
 const FLOAT: Color = Color::white(0.85);
@@ -34,7 +39,7 @@ const FLOAT_ON_LIGHT: f32 = 0.85;
 /// The mark's head is 104 units wide. The logo's island bar starts at y 23,
 /// just under the eyes.
 const MARK_W: f32 = 104.0;
-const BAR_TOP: f32 = 23.0;
+const BAR_TOP: f32 = 46.0;
 /// The mark's small cut grows the eyes for sizes of 32 px and below.
 const SMALL_EYES: f64 = 1.19;
 
@@ -43,8 +48,8 @@ const SMALL_EYES: f64 = 1.19;
 const REST_CYCLE: f64 = 6.5;
 const BLINK_WINDOW: f64 = 0.4;
 
-pub fn on(theme: Theme) -> bool {
-    theme == Theme::Oyen
+pub fn on(_theme: Theme) -> bool {
+    true
 }
 
 /// Is a rest move (blink or ear flick) under way at `now`?
@@ -449,6 +454,18 @@ fn badge(c: &mut Canvas, center: Point, w: f32) {
 /// the icon's near-black tile (catat assets/images/icon.png: his head is
 /// 61.7 % of the tile, his middle 1.3 % below its centre), with the rounded
 /// corners phones give it. Its own colours in every theme.
+
+static ALICE_IMG: OnceLock<Image> = OnceLock::new();
+
+pub fn alice_image() -> Image {
+    ALICE_IMG
+        .get_or_init(|| {
+            const BYTES: &[u8] = include_bytes!("../res/alice_bgra.bin");
+            ImageData::new(260, 240, BYTES.to_vec())
+        })
+        .clone()
+}
+
 pub fn app_icon(c: &mut Canvas, center: Point, size: f32) {
     let tile = Rect::new(center.x - size / 2.0, center.y - size / 2.0, size, size);
     c.unthemed(|c| c.fill_rrect(tile, size * 0.2237, ICON_TILE));
@@ -472,14 +489,17 @@ fn draw_face(c: &mut Canvas, f: &Frame, origin: Point, k: f32, float: Color) {
     };
     // Strokes scale with the head (it squashes a few percent when bouncing).
     let stroke_k = k * ((h.a * h.d - h.b * h.c).abs().sqrt() as f32);
-    let tip = if f.tip.faces_up { ORANGE } else { FOLD };
-    if f.tip.behind_head {
-        c.path(&segs(&f.tip.path, &map), Some(tip), None);
-    }
-    c.path(&segs(oyen::head_path(), &map), Some(ORANGE), None);
-    if !f.tip.behind_head {
-        c.path(&segs(&f.tip.path, &map), Some(tip), None);
-    }
+    // Alice body sprite transformed by the head affine matrix (bobbing, leaning, bouncing)
+    let alice = alice_image();
+    let m = Matrix3x2 {
+        M11: (h.a * k as f64) as f32,
+        M12: (h.b * k as f64) as f32,
+        M21: (h.c * k as f64) as f32,
+        M22: (h.d * k as f64) as f32,
+        M31: origin.x + (h.tx * k as f64) as f32,
+        M32: origin.y + (h.ty * k as f64) as f32,
+    };
+    c.draw_sprite(&alice, Rect::new(-65.0, -50.0, 130.0, 120.0), m);
     for s in f.eyes.iter().chain(&f.extras) {
         let color = match s.paint {
             Paint::Ink if s.place == Place::Eye => INK,

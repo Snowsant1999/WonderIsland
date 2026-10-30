@@ -14,7 +14,7 @@
 //! One whose files this build can't get yet stays off and says so
 //! (`Status::Unpinned`).
 //! Both apps list every add-on ([`OFFERED`]) but Screen recorder, which shows
-//! once Oyenza Studio Recorder is installed, and Notifications, which only
+//! once WonderIsland Recorder is installed, and Notifications, which only
 //! Windows has ([`rows`]). Eight rows (the recorder's with them) are one
 //! line each: the name, then the line after it.
 //!
@@ -199,7 +199,7 @@ fn addon_row(ui: &mut Ui, st: &AppState, r: Rect, i: usize, a: &Addon, card: Opt
     let line_color = if status == Status::Failed { palette::ORANGE } else { palette::TEXT_DIM };
     // Screen recorder came on with the recorder, not by a click here: say so.
     let line = if a.id == addons::SCREEN_RECORDER.id && status == Status::Ready {
-        "On, since Oyenza Studio Recorder is installed".to_string()
+        "On, since WonderIsland Recorder is installed".to_string()
     } else {
         status.line(a, MAC)
     };
@@ -238,7 +238,7 @@ mod tests {
     fn every_row_offered_fits_the_page() {
         let mut st = AppState::new(Settings::default(), Store::default());
         let without = rows(&st).len();
-        // Oyenza Studio Recorder installed, and signed in with Pro where the
+        // WonderIsland Recorder installed, and signed in with Pro where the
         // Downloader is offered: the recorder, IELTS and the Downloader join.
         st.recorder = true;
         st.store.recorder_island = true;

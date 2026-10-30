@@ -40,8 +40,8 @@ use poni_core::settings::Theme;
 /// The island floats this far below the screen's top edge (DIPs).
 pub const TOP_GAP: f32 = 8.0;
 
-pub fn on(theme: Theme) -> bool {
-    theme == Theme::Pill
+pub fn on(_theme: Theme) -> bool {
+    false
 }
 
 /// The island's size for `m` in the Pill theme, or `None` for Classic's.
