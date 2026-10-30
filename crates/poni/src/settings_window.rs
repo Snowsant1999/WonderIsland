@@ -212,6 +212,7 @@ impl Section {
     pub fn shown(self, st: &AppState) -> bool {
         match self {
             Section::Prayer => st.prayer_on(),
+            Section::Oyenza => false,
             _ => true,
         }
     }
@@ -329,17 +330,14 @@ const CLOSE: [(u32, &str); 3] = [(0, "At once"), (400, "Short"), (1000, "Long")]
 const DISPLAYS: [(MonitorChoice, &str); 2] = [(MonitorChoice::Primary, "Main display"), (MonitorChoice::Cursor, "Under the pointer")];
 const FULLSCREEN: [(bool, &str); 2] = [(true, "Hide"), (false, "Stay on top")];
 const SOUNDS: [(PrayerSound, &str); 3] = [(PrayerSound::Adzan, "Adzan"), (PrayerSound::Tone, "Tone"), (PrayerSound::Silent, "Silent")];
-const THEMES: [(Theme, &str, &str); 4] = [
-    (Theme::Classic, "Classic", "A black island at the top edge"),
-    (Theme::Oyen, "Oyen", "Oyen lives in the island"),
-    (Theme::Glass, "Glass", "Frosted glass over your screen"),
-    (Theme::Pill, "Pill", "Floats just below the top edge"),
+const THEMES: [(Theme, &str, &str); 1] = [
+    (Theme::Wonderland, "Wonderland", "Alice Blue island with midnight ink and pocket watch gold"),
 ];
 /// Start with Windows, or at login on a Mac (its menu bar says so).
 const AUTOSTART: (&str, &str) = if cfg!(target_os = "macos") {
-    ("Start at login", "Opens Oyenza Studio when you log in")
+    ("Start at login", "Opens WonderIsland when you log in")
 } else {
-    ("Start with Windows", "Opens Oyenza Studio when you sign in")
+    ("Start with Windows", "Opens WonderIsland when you sign in")
 };
 const WIDTH_STEP: f32 = 20.0;
 const OFFSET_STEP: i32 = 100;
@@ -357,10 +355,9 @@ fn nearest(list: &[(u32, &str)], ms: u32) -> Option<usize> {
     list.iter().enumerate().min_by_key(|(_, (v, _))| v.abs_diff(ms)).map(|(i, _)| i)
 }
 
-fn idle_name(s: IdleStyle, theme: Theme) -> &'static str {
+fn idle_name(s: IdleStyle, _theme: Theme) -> &'static str {
     match s {
         IdleStyle::Clock => "Clock",
-        IdleStyle::Eyes if theme == Theme::Oyen => "Oyen",
         IdleStyle::Eyes => "Eyes",
         IdleStyle::Minimal => "Minimal",
         IdleStyle::Hidden => "Hidden",
@@ -1104,7 +1101,7 @@ fn draw_version(ui: &mut Ui, st: &mut AppState, r: Rect, view: Rect, sf: &Surfac
     let clickable = visible(r, view).is_some_and(|v| v.h >= r.h - 0.5);
     let check = clickable.then(|| crate::pages::settings::check_slot(ui, st, head)).flatten();
     let right = check.map_or(head.right(), |b| b.x - 12.0);
-    ui.c.text("Oyenza Studio", Rect::new(tx, cy - 20.0, (right - tx).max(0.0), 22.0), &TextStyle::headline());
+    ui.c.text("WonderIsland", Rect::new(tx, cy - 20.0, (right - tx).max(0.0), 22.0), &TextStyle::headline());
     ui.c.text(&format!("Version {VERSION}"), Rect::new(tx, cy + 2.0, (right - tx).max(0.0), 17.0), &TextStyle::footnote().color(palette::TEXT_DIM));
     if let Some(b) = check {
         crate::pages::settings::draw_check(ui, st, b);
@@ -1210,27 +1207,10 @@ fn draw_theme_preview(c: &mut Canvas, theme: Theme, screen: Rect) {
     let cx = screen.center().x;
     let clock = TextStyle::caption().weight(Weight::Semibold).tabular().center();
     match theme {
-        Theme::Classic | Theme::Oyen | Theme::Glass => {
+        Theme::Wonderland => {
             let body = Rect::new(cx - 34.0, screen.y, 68.0, 20.0);
-            let (fill, border) = match theme {
-                Theme::Glass => (Color::white(0.30), Some(Color::white(0.45))),
-                _ => (palette::ISLAND, None),
-            };
-            c.notch(body, 9.0, 5.0, fill, border);
-            if theme == Theme::Oyen {
-                // Oyen's eyes peek over the island's edge.
-                for dx in [-6.0, 6.0] {
-                    c.fill_rrect(Rect::from_center(Point::new(cx + dx, body.center().y), 5.0, 8.0), 2.5, palette::ORANGE);
-                }
-            } else {
-                c.text("10:08", body, &clock.color(palette::TEXT));
-            }
-        }
-        Theme::Pill => {
-            let body = Rect::new(cx - 36.0, screen.y + 7.0, 72.0, 20.0);
-            c.fill_rrect(body.offset(0.0, 2.0), 10.0, Color::black(0.25));
-            c.fill_rrect(body, 10.0, palette::ISLAND);
-            c.text("10:08", body, &clock.color(palette::TEXT));
+            c.notch(body, 9.0, 5.0, poni_core::look::ALICE_BLUE, Some(Color::rgba(0.118, 0.165, 0.290, 0.14)));
+            c.text("10:08", body, &clock.color(poni_core::look::MIDNIGHT_INK));
         }
     }
     c.unclip();
@@ -1362,10 +1342,7 @@ mod tests {
             _ => Vec::new(),
         };
         assert!(!looks(&st).contains(&"Status"));
-        st.settings.theme = Theme::Pill;
-        assert!(looks(&st).contains(&"Status"));
-        st.settings.theme = Theme::Oyen;
-        assert!(looks(&st).contains(&"Oyen"));
+        // Wonderland theme test
     }
 
     #[test]

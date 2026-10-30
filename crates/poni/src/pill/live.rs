@@ -455,7 +455,7 @@ mod tests {
 
     fn state() -> AppState {
         let mut st = AppState::new(Settings::default(), Store::default());
-        st.settings.theme = Theme::Pill;
+        st.settings.theme = Theme::Wonderland;
         st.now = 1000.0;
         st
     }

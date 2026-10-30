@@ -11,9 +11,9 @@
 Target amd64-unicode
 SetCompressor /SOLID lzma
 
-!define APPNAME "Oyenza Studio"
+!define APPNAME "WonderIsland"
 !define VERSION "0.2.19"
-!define PUBLISHER "Jatevo Labs"
+!define PUBLISHER "WonderIsland"
 !define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\Poni"
 !define RUN_KEY "Software\Microsoft\Windows\CurrentVersion\Run"
 
@@ -25,7 +25,7 @@ SetCompressor /SOLID lzma
 !endif
 
 Name "${APPNAME}"
-OutFile "${OUTDIR}/Oyenza-Studio-Setup-${VERSION}.exe"
+OutFile "${OUTDIR}/WonderIsland-Setup-${VERSION}.exe"
 RequestExecutionLevel user
 InstallDir "$LOCALAPPDATA\Programs\Poni"
 InstallDirRegKey HKCU "Software\Poni" "InstallDir"
@@ -34,7 +34,7 @@ BrandingText "${APPNAME} ${VERSION}"
 VIProductVersion "0.2.19.0"
 VIAddVersionKey "ProductName" "${APPNAME}"
 VIAddVersionKey "CompanyName" "${PUBLISHER}"
-VIAddVersionKey "FileDescription" "Oyenza Studio installer"
+VIAddVersionKey "FileDescription" "WonderIsland installer"
 VIAddVersionKey "FileVersion" "${VERSION}"
 VIAddVersionKey "ProductVersion" "${VERSION}"
 VIAddVersionKey "LegalCopyright" "Copyright (C) 2026 ${PUBLISHER}"

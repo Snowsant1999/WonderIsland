@@ -19,16 +19,15 @@
 //! Settings does.
 
 use crate::activities::{text_with_dim, text_with_dim_width};
-use crate::commands::{Command, OyenzaCmd};
+use crate::commands::Command;
 use crate::gfx::{TextStyle, Weight};
 use crate::icons::Icon;
 use crate::pages::PageKind;
 use crate::pill::status;
 use crate::state::{AppState, OyenzaLink, Said};
-use crate::ui::{wid, wid_n, PillStyle, Ui, PILL_GAP, PILL_REGULAR, PILL_SMALL};
+use crate::ui::{wid, wid_n, PillStyle, Ui, PILL_SMALL};
 use crate::version::VERSION;
 use poni_core::geom::{palette, Color, Point, Rect};
-use poni_core::oyenza;
 use poni_core::phonedrop::fmt_bytes;
 use poni_core::settings::{IdleStyle, Theme};
 use poni_core::update::Release;
@@ -74,7 +73,6 @@ const CHECK_H: f32 = 22.0;
 const SWITCH_H: f32 = 18.0;
 const KNOB_INSET: f32 = 2.0;
 /// Oyenza's colour, as on the Oyenza page.
-const OYENZA: Color = palette::ORANGE;
 /// The tabs row's chips, like the Record page's inputs.
 const CHIP_H: f32 = 24.0;
 const CHIP_PAD: f32 = 8.0;
@@ -83,7 +81,7 @@ const CHIP_ICON_GAP: f32 = 5.0;
 const CHIP_GAP: f32 = 6.0;
 
 // Glass: on Windows from a copy of the screen, on a Mac macOS's own glass.
-const THEMES: [(Theme, &str); 4] = [(Theme::Classic, "Classic"), (Theme::Oyen, "Oyen"), (Theme::Glass, "Glass"), (Theme::Pill, "Pill")];
+const THEMES: [(Theme, &str); 1] = [(Theme::Wonderland, "Wonderland")];
 
 /// An idle look's name in the picker (`eyes` is Oyen in his theme).
 fn idle_name(s: IdleStyle, eyes: &'static str) -> &'static str {
@@ -162,7 +160,7 @@ pub fn draw(ui: &mut Ui, st: &mut AppState, area: Rect) {
     let theme_sel = THEMES.iter().position(|t| t.0 == st.settings.theme).unwrap_or(0);
     let looks = status::looks(st.settings.theme);
     // In the Oyen theme the eyes are Oyen's own (as in the tray menu).
-    let eyes = if st.settings.theme == Theme::Oyen { "Oyen" } else { "Eyes" };
+    let eyes = "Eyes";
     let look_names: Vec<&str> = looks.iter().map(|s| idle_name(*s, eyes)).collect();
     let look_sel = looks.iter().position(|s| *s == status::shown(st.settings.theme, st.settings.idle_style)).unwrap_or(0);
     // Side by side under their labels when both fit their columns, each
@@ -423,9 +421,9 @@ fn draw_sheet(ui: &mut Ui, st: &mut AppState, area: Rect, rel: &Release) {
     text_with_dim(ui, title, &rel.version, Rect::new(x, cy - 19.0, w, 20.0), TextStyle::headline());
     let size = rel.download(cfg!(target_os = "macos")).map(|d| fmt_bytes(d.size)).unwrap_or_default();
     let line = if ready {
-        "A new version of Oyenza Studio is ready to be installed.".to_string()
+        "A new version of WonderIsland is ready to be installed.".to_string()
     } else {
-        format!("A new version of Oyenza Studio is ready to download ({size}).")
+        format!("A new version of WonderIsland is ready to download ({size}).")
     };
     ui.c.text(&line, Rect::new(x, cy + 1.0, w, 17.0), &TextStyle::footnote().color(palette::TEXT_DIM));
 
@@ -445,7 +443,7 @@ fn draw_sheet(ui: &mut Ui, st: &mut AppState, area: Rect, rel: &Release) {
         };
         vec![(Get::InstallNow, Icon::Download, "Install now".to_string(), "Closes, updates and opens again"), next]
     } else if cfg!(target_os = "macos") {
-        vec![(Get::Download, Icon::Download, format!("Download {}", rel.version), "Downloads the DMG: open it and drag Oyenza Studio to Applications.")]
+        vec![(Get::Download, Icon::Download, format!("Download {}", rel.version), "Downloads the DMG: open it and drag WonderIsland to Applications.")]
     } else {
         vec![(Get::Download, Icon::Download, format!("Download {}", rel.version), "Opens its release page: run the Setup there, your settings stay.")]
     };
@@ -461,7 +459,7 @@ fn draw_sheet(ui: &mut Ui, st: &mut AppState, area: Rect, rel: &Release) {
         }
     }
 
-    let notes = format!("See what's new in Oyenza Studio {}", rel.version);
+    let notes = format!("See what's new in WonderIsland {}", rel.version);
     let nw = ui.pill_width(&notes, true, true).min(area.w);
     let nr = Rect::new(area.x, area.y + NOTES_Y, nw, PILL_SMALL);
     if ui.pill(wid("update.notes"), nr, &notes, Some(Icon::Open), PillStyle::Utility).clicked {
@@ -530,51 +528,10 @@ fn flip(st: &mut AppState, sw: Switch, on: Option<bool>) {
 
 // ---------------------------------------------------------------- account
 
-pub(crate) fn draw_account(ui: &mut Ui, st: &mut AppState, r: Rect) {
+pub(crate) fn draw_account(ui: &mut Ui, _st: &mut AppState, r: Rect) {
     let cy = r.center().y;
     crate::oyen::app_icon(ui.c, Point::new(r.x + ICON / 2.0, cy), ICON);
-    match st.oyenza.link.clone() {
-        OyenzaLink::Off => {
-            let label = "Sign in with Oyenza";
-            let w = ui.pill_width(label, false, false);
-            let b = Rect::new(r.right() - w, cy - PILL_REGULAR / 2.0, w, PILL_REGULAR);
-            if ui.pill(wid("settings.sign-in"), b, label, None, PillStyle::Primary(OYENZA)).clicked {
-                st.cmd(Command::Oyenza(OyenzaCmd::SignIn));
-            }
-            account_text(ui, r, b.x, "Oyenza", "Sign in to see money in and bills due here.");
-        }
-        OyenzaLink::Connecting { code, until, .. } => {
-            let cancel_w = ui.pill_width("Cancel", false, true);
-            let cancel = Rect::new(r.right() - cancel_w, cy - PILL_SMALL / 2.0, cancel_w, PILL_SMALL);
-            if ui.pill(wid("settings.cancel"), cancel, "Cancel", None, PillStyle::Utility).clicked {
-                st.cmd(Command::Oyenza(OyenzaCmd::Cancel));
-            }
-            let show_w = ui.pill_width("Show code", false, true);
-            let show = Rect::new(cancel.x - PILL_GAP - show_w, cancel.y, show_w, PILL_SMALL);
-            if ui.pill(wid("settings.show-code"), show, "Show code", None, PillStyle::Primary(OYENZA)).clicked {
-                st.cmd(Command::SetPage(PageKind::Oyenza));
-            }
-            let line = format!("Code {code} · works for {}", oyenza::code_time_left(until - st.now));
-            account_text(ui, r, show.x, "Signing in to Oyenza", &line);
-        }
-        OyenzaLink::Connected { account } => {
-            let dis_w = ui.pill_width("Disconnect", false, true);
-            let dis = Rect::new(r.right() - dis_w, cy - PILL_SMALL / 2.0, dis_w, PILL_SMALL);
-            if ui.pill(wid("settings.disconnect"), dis, "Disconnect", None, PillStyle::Utility).clicked {
-                st.cmd(Command::Oyenza(OyenzaCmd::Disconnect));
-            }
-            // Sums and senders straight away on the island (off: they wait for Show).
-            let label = "Show amounts";
-            let lw = ui.c.measure(label, &TextStyle::body(), 300.0).0.ceil();
-            let row = Rect::new(dis.x - 2.0 * ROW_BLEED - lw - 10.0 - SWITCH_W, cy - ROW_H / 2.0, lw + 10.0 + SWITCH_W, ROW_H);
-            let on = st.settings.oyenza_show_amounts;
-            if switch_row(ui, wid("settings.amounts"), row, label, Some(on), st.accent) {
-                st.settings.oyenza_show_amounts = !on;
-                st.cmd(Command::SaveSettings);
-            }
-            account_text(ui, r, row.x - ROW_BLEED, "Oyenza", &format!("Signed in as {account}"));
-        }
-    }
+    account_text(ui, r, r.right(), "WonderIsland", "Alice in Wonderland edition for Windows");
 }
 
 /// The account's name over one dim line, between Oyen and `right` (where

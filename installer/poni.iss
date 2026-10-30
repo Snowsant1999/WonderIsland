@@ -16,10 +16,10 @@
 #ifndef ExeSource
   #define ExeSource "..\target\release\poni.exe"
 #endif
-#define AppName "Oyenza Studio"
+#define AppName "WonderIsland"
 ; Folder, data and Run value names stay "Poni" (the app and 0.1.x installs use them).
 #define AppDir "Poni"
-#define AppPublisher "Jatevo Labs"
+#define AppPublisher "WonderIsland"
 #define AppExe "poni.exe"
 ; The island window's class (crates/poni/src/window.rs), used to ask a running copy to quit.
 #define IslandClass "Poni.Island"
@@ -45,7 +45,7 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
 OutputDir=..\dist
-OutputBaseFilename=Oyenza-Studio-Setup-{#AppVersion}
+OutputBaseFilename=WonderIsland-Setup-{#AppVersion}
 SetupIconFile=..\crates\poni\res\poni.ico
 UninstallDisplayIcon={app}\{#AppExe}
 UninstallDisplayName={#AppName}

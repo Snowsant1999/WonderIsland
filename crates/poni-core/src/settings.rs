@@ -25,18 +25,10 @@ pub enum IdleStyle {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Theme {
-    /// The plain black island.
+    /// WonderIsland: Alice Blue ground, midnight ink, gold accent.
     #[default]
-    Classic,
-    /// Oyen, the Oyenza cat, lives in the island: he peeks over its edge
-    /// while it rests, bobs to the music and takes Oyen's orange as accent.
-    Oyen,
-    /// Liquid glass: the island bends, frosts and tints what's under it.
-    Glass,
-    /// Pill: the island floats a little below the top edge as a black
-    /// capsule, with its own layouts: the time and battery at rest, the song
-    /// while music plays, a rounded card when it opens.
-    Pill,
+    #[serde(alias = "classic", alias = "oyen", alias = "glass", alias = "pill")]
+    Wonderland,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -48,7 +40,7 @@ pub enum MonitorChoice {
 }
 
 /// Bumped when defaults change in a way existing files should pick up.
-pub const SETTINGS_VERSION: u32 = 4;
+pub const SETTINGS_VERSION: u32 = 5;
 
 fn version_zero() -> u32 {
     0
@@ -218,7 +210,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             settings_version: SETTINGS_VERSION,
-            theme: Theme::Classic,
+            theme: Theme::Wonderland,
             idle_style: IdleStyle::Clock,
             use_24h: true,
             hover_delay_ms: 220,
@@ -321,6 +313,9 @@ impl Settings {
         if self.settings_version < 4 && self.start_page == "clipboard" {
             self.start_page = "media".into();
         }
+        if self.settings_version < 5 {
+            self.theme = Theme::Wonderland;
+        }
         self.settings_version = self.settings_version.max(SETTINGS_VERSION);
         // Step aside is no longer offered: the island stays over maximized windows.
         self.step_aside = false;
@@ -398,16 +393,19 @@ mod tests {
     }
 
     #[test]
-    fn theme_defaults_to_classic() {
-        // Files written before themes existed keep the black island.
+    fn theme_defaults_to_wonderland() {
         let s: Settings = serde_json::from_str(r#"{"idle_style":"eyes"}"#).unwrap();
-        assert_eq!(s.theme, Theme::Classic);
+        assert_eq!(s.theme, Theme::Wonderland);
+        let s: Settings = serde_json::from_str(r#"{"theme":"classic"}"#).unwrap();
+        assert_eq!(s.theme, Theme::Wonderland);
         let s: Settings = serde_json::from_str(r#"{"theme":"oyen"}"#).unwrap();
-        assert_eq!(s.theme, Theme::Oyen);
+        assert_eq!(s.theme, Theme::Wonderland);
         let s: Settings = serde_json::from_str(r#"{"theme":"glass"}"#).unwrap();
-        assert_eq!(s.theme, Theme::Glass);
+        assert_eq!(s.theme, Theme::Wonderland);
         let s: Settings = serde_json::from_str(r#"{"theme":"pill"}"#).unwrap();
-        assert_eq!(s.theme, Theme::Pill);
+        assert_eq!(s.theme, Theme::Wonderland);
+        let s: Settings = serde_json::from_str(r#"{"theme":"wonderland"}"#).unwrap();
+        assert_eq!(s.theme, Theme::Wonderland);
     }
 
     #[test]
@@ -434,7 +432,7 @@ mod tests {
     fn files_with_clipboard_history_still_load_and_drop_it() {
         // Files from 0.2.8 and before hold the key: it's ignored, and gone after a save.
         let s = serde_json::from_str::<Settings>(r#"{"settings_version":4,"clipboard_history":true,"theme":"oyen"}"#).unwrap().sanitized();
-        assert_eq!(s.theme, Theme::Oyen);
+        assert_eq!(s.theme, Theme::Wonderland);
         assert!(!serde_json::to_string(&s).unwrap().contains("clipboard"));
         // A Clipboard start page from before 0.2.7 opens Music.
         let s = serde_json::from_str::<Settings>(r#"{"settings_version":3,"start_page":"clipboard"}"#).unwrap().sanitized();

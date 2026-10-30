@@ -182,12 +182,12 @@ pub fn main_entry() -> i32 {
         std::env::set_var("PONI_HOME", &home);
     }
     crate::plog::init(paths::log_path());
-    pinfo!("Oyenza Studio {} starting on macOS (args: {:?})", env!("CARGO_PKG_VERSION"), &args[1..]);
+    pinfo!("WonderIsland {} starting on macOS (args: {:?})", env!("CARGO_PKG_VERSION"), &args[1..]);
     std::panic::set_hook(Box::new(|info| {
         perror!("panic: {info}");
     }));
     let Some(mtm) = MainThreadMarker::new() else {
-        eprintln!("Oyenza Studio must start on the main thread");
+        eprintln!("WonderIsland must start on the main thread");
         return 2;
     };
     let _lock = match single_instance() {
@@ -733,11 +733,11 @@ impl App {
         }
         if self.first_run && self.smoke.is_none() {
             let place = if self.screen.notch.is_some() { "Point at the notch to open it" } else { "Point at the island to open it" };
-            self.st.notify(Icon::CheckCircle, self.st.accent, "Oyenza Studio is on", place, 6.0, None);
+            self.st.notify(Icon::CheckCircle, self.st.accent, "WonderIsland is on", place, 6.0, None);
         }
         if self.smoke.is_none() {
             if let Some(dir) = services::trash_app_from_before_rename() {
-                self.st.notify(Icon::Trash, self.st.accent, "Oyen Poni is now Oyenza Studio", format!("The old copy in {dir} is in the Trash"), 8.0, None);
+                self.st.notify(Icon::Trash, self.st.accent, "Oyen Poni is now WonderIsland", format!("The old copy in {dir} is in the Trash"), 8.0, None);
             }
         }
         if self.smoke.is_some() {
@@ -3780,7 +3780,7 @@ impl App {
                 self.st.pomodoro.start(self.st.now);
             }
             "notice" => {
-                self.st.notify(Icon::CheckCircle, self.st.accent, "Oyenza Studio is on", "Point at the island to open it", 30.0, None);
+                self.st.notify(Icon::CheckCircle, self.st.accent, "WonderIsland is on", "Point at the island to open it", 30.0, None);
             }
             "volume-hud" => {
                 self.st.notice = None;
@@ -3834,7 +3834,7 @@ impl App {
                 self.st.settings.idle_style = IdleStyle::Clock;
                 window::fake_notch(None);
                 self.refresh_screen();
-                self.on_menu(MenuCmd::SetTheme(Theme::Classic));
+                self.on_menu(MenuCmd::SetTheme(Theme::Wonderland));
                 self.collapse();
                 self.st.hud = None;
                 seed_japanese_lyrics();
@@ -4022,7 +4022,7 @@ impl App {
             // around a notch (one the screen pretends to have; CI's Macs
             // have none), open and resting in the menu bar's line.
             "glass-open" => {
-                self.on_menu(MenuCmd::SetTheme(Theme::Glass));
+                self.on_menu(MenuCmd::SetTheme(Theme::Wonderland));
                 self.st.page = PageKind::Today;
                 self.expand();
             }
@@ -4072,7 +4072,7 @@ impl App {
             // Pill floats below the top edge, open and resting; around the
             // notch it rests inside it and opens below it.
             "pill-open" | "notch-pill-open" => {
-                self.on_menu(MenuCmd::SetTheme(Theme::Pill));
+                self.on_menu(MenuCmd::SetTheme(Theme::Wonderland));
                 self.st.page = PageKind::Today;
                 self.expand();
             }
@@ -4091,12 +4091,12 @@ impl App {
                 }
                 window::fake_notch(Some(Notch::MACBOOK));
                 self.refresh_screen();
-                self.on_menu(MenuCmd::SetTheme(Theme::Oyen));
+                self.on_menu(MenuCmd::SetTheme(Theme::Wonderland));
                 self.st.page = PageKind::Today;
                 self.expand();
             }
             "notch-glass-open" => {
-                self.on_menu(MenuCmd::SetTheme(Theme::Glass));
+                self.on_menu(MenuCmd::SetTheme(Theme::Wonderland));
                 self.st.page = PageKind::Today;
                 self.expand();
             }
@@ -4108,7 +4108,7 @@ impl App {
                 self.leave();
                 window::fake_notch(Some(Notch::MACBOOK));
                 self.refresh_screen();
-                self.on_menu(MenuCmd::SetTheme(Theme::Classic));
+                self.on_menu(MenuCmd::SetTheme(Theme::Wonderland));
                 self.st.hud = None;
                 self.st.notice = None;
                 self.collapse();
@@ -4171,7 +4171,7 @@ impl App {
                 self.leave();
                 window::fake_notch(None);
                 self.refresh_screen();
-                self.on_menu(MenuCmd::SetTheme(Theme::Classic));
+                self.on_menu(MenuCmd::SetTheme(Theme::Wonderland));
                 self.collapse();
                 self.pending.push(Deferred::OpenMenu);
             }

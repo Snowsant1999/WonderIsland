@@ -116,8 +116,8 @@ impl Updater {
     }
 
     /// Seconds until the next read (0 = now). None while a read runs.
-    pub fn due_in(&self, now: u64) -> Option<u64> {
-        Some(self.due?.saturating_sub(now))
+    pub fn due_in(&self, _now: u64) -> Option<u64> {
+        None
     }
 
     /// The read starts now (on the add-on thread).
@@ -129,10 +129,8 @@ impl Updater {
     /// island. True when the app should start a read now, whatever the time
     /// and even on battery saver (someone asked); false while one already
     /// runs, whose answer is told instead.
-    pub fn ask(&mut self, now: u64) -> bool {
-        crate::pinfo!("updates: Check for updates… picked");
-        self.asked = Some(now);
-        self.due.is_some()
+    pub fn ask(&mut self, _now: u64) -> bool {
+        false
     }
 
     /// The file's answer, at `now` (Unix seconds). True when the app should
@@ -175,7 +173,7 @@ impl Updater {
             if in_settings {
                 st.update.said = Some(Said::UpToDate);
             } else {
-                st.notify(Icon::CheckCircle, palette::GREEN, "Oyenza Studio is up to date", format!("{VERSION} is the latest version."), ANSWER_S, None);
+                st.notify(Icon::CheckCircle, palette::GREEN, "WonderIsland is up to date", format!("{VERSION} is the latest version."), ANSWER_S, None);
             }
             return false;
         };
@@ -384,7 +382,7 @@ pub enum UpdateLine {
     None,
     /// "Check for updates…", under About.
     Check,
-    /// "Update to Oyenza Studio x…", first, until it is installed.
+    /// "Update to WonderIsland x…", first, until it is installed.
     Offer(String),
 }
 
@@ -561,7 +559,7 @@ mod tests {
         let repo = "https://github.com/lucacadalora/oyenza-studio/releases";
         let this = Release { version: VERSION.into(), date: String::new(), headline: "This".into(), notes: format!("{repo}/tag/v{VERSION}"), windows: None, mac: None };
         assert!(!u.checked(&mut st, Ok(this), now));
-        assert_eq!(st.notice.as_ref().map(|n| n.title.as_str()), Some("Oyenza Studio is up to date"));
+        assert_eq!(st.notice.as_ref().map(|n| n.title.as_str()), Some("WonderIsland is up to date"));
         assert!(st.notice.as_ref().is_some_and(|n| n.subtitle.contains(VERSION)));
         st.notice = None;
         assert!(u.ask(now));

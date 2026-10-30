@@ -205,10 +205,10 @@ mod tests {
 
     #[test]
     fn status_is_the_pill_themes_own() {
-        assert_eq!(looks(Theme::Pill).last(), Some(&IdleStyle::Status));
-        assert_eq!(shown(Theme::Pill, IdleStyle::Status), IdleStyle::Status);
-        for theme in [Theme::Classic, Theme::Oyen, Theme::Glass] {
-            assert_eq!(looks(theme), &looks(Theme::Pill)[..4], "{theme:?}");
+        assert_eq!(looks(Theme::Wonderland).last(), Some(&IdleStyle::Status));
+        assert_eq!(shown(Theme::Wonderland, IdleStyle::Status), IdleStyle::Status);
+        for theme in [Theme::Wonderland] {
+            assert_eq!(looks(theme), &looks(Theme::Wonderland)[..4], "{theme:?}");
             // They draw the clock for it, so a picker marks Clock.
             assert_eq!(shown(theme, IdleStyle::Status), IdleStyle::Clock, "{theme:?}");
             assert_eq!(shown(theme, IdleStyle::Eyes), IdleStyle::Eyes, "{theme:?}");
@@ -217,7 +217,7 @@ mod tests {
 
     #[test]
     fn the_bar_is_a_capsule_that_makes_room_for_the_battery() {
-        let mut st = AppState::new(Settings { theme: Theme::Pill, idle_style: IdleStyle::Status, ..Settings::default() }, Store::default());
+        let mut st = AppState::new(Settings { theme: Theme::Wonderland, idle_style: IdleStyle::Status, ..Settings::default() }, Store::default());
         st.volume.known = true;
         st.power.has_battery = false;
         let bare = geom(&st).unwrap();

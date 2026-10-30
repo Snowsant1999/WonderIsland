@@ -822,14 +822,13 @@ fn pick_font_family(dwrite: &IDWriteFactory) -> Vec<u16> {
     wide("Segoe UI").into_iter().chain(Some(0)).collect()
 }
 
-/// Fonts shipped inside the exe: Outfit (SIL Open Font License 1.1, see
-/// `res/fonts/OFL.txt`), the Oyenza Studio website's typeface, in the four weights
-/// the island uses.
+/// Fonts shipped inside the exe: Crimson Pro (SIL Open Font License 1.1, see
+/// `res/fonts/OFL.txt`), in the four weights the island uses.
 const EMBEDDED_FONTS: [&[u8]; 4] = [
-    include_bytes!("../res/fonts/Outfit-Regular.ttf"),
-    include_bytes!("../res/fonts/Outfit-Medium.ttf"),
-    include_bytes!("../res/fonts/Outfit-SemiBold.ttf"),
-    include_bytes!("../res/fonts/Outfit-Bold.ttf"),
+    include_bytes!("../res/fonts/CrimsonPro-Regular.ttf"),
+    include_bytes!("../res/fonts/CrimsonPro-Medium.ttf"),
+    include_bytes!("../res/fonts/CrimsonPro-SemiBold.ttf"),
+    include_bytes!("../res/fonts/CrimsonPro-Bold.ttf"),
 ];
 
 /// A font collection of the embedded fonts (needs Windows 10 1703+). Letters
@@ -1976,6 +1975,22 @@ impl<'a> Canvas<'a> {
             brush.SetOpacity(self.alpha);
             let rr = D2D1_ROUNDED_RECT { rect: rectf(r), radiusX: radius, radiusY: radius };
             self.g.rt.FillRoundedRectangle(&rr, &brush);
+        }
+    }
+
+    /// Draw a bitmap transformed by `m` into destination rectangle `dest`.
+    pub fn draw_sprite(&mut self, img: &Image, dest: Rect, m: Matrix3x2) {
+        if img.width == 0 || img.height == 0 || dest.w <= 0.0 || dest.h <= 0.0 {
+            return;
+        }
+        let Ok(bmp) = self.g.bitmap_for(img) else { return };
+        unsafe {
+            let mut prev = Matrix3x2::identity();
+            self.g.rt.GetTransform(&mut prev);
+            self.g.rt.SetTransform(&(m * prev));
+            let r = rectf(dest);
+            self.g.rt.DrawBitmap(&bmp, Some(&r), self.alpha, D2D1_BITMAP_INTERPOLATION_MODE_LINEAR, None);
+            self.g.rt.SetTransform(&prev);
         }
     }
 

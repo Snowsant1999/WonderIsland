@@ -10,7 +10,7 @@
 //! Differences that are on purpose:
 //! * Colours are sRGB, like the Windows island, whatever the display's own space.
 //! * Text uses the system font (SF Pro, with monospaced digits for `tabular`)
-//!   unless the look brings its own (Outfit for Oyen, embedded in the app).
+//!   unless the look brings its own (Crimson Pro for Wonderland, embedded in the app).
 //! * [`Canvas::layered`] is a Core Graphics transparency layer: the group still
 //!   fades as one picture, and its text is drawn live through the transform
 //!   (macOS doesn't hint glyphs, so scaled text glides without re-snapping).
@@ -297,15 +297,15 @@ fn cgrect(r: Rect) -> CGRect {
 
 // ---------------------------------------------------------------- fonts and text layout
 
-/// Fonts shipped inside the app: Outfit (SIL Open Font License 1.1, see
+/// Fonts shipped inside the app: Crimson Pro (SIL Open Font License 1.1, see
 /// `res/fonts/OFL.txt`), the Oyenza Studio website's typeface, in the island's
-/// four weights. Letters Outfit lacks (Japanese, Korean, emoji, ...) come
+/// four weights. Letters Crimson Pro lacks (Japanese, Korean, emoji, ...) come
 /// from the system's fonts through Core Text's fallback.
 const EMBEDDED_FONTS: [&[u8]; 4] = [
-    include_bytes!("../../res/fonts/Outfit-Regular.ttf"),
-    include_bytes!("../../res/fonts/Outfit-Medium.ttf"),
-    include_bytes!("../../res/fonts/Outfit-SemiBold.ttf"),
-    include_bytes!("../../res/fonts/Outfit-Bold.ttf"),
+    include_bytes!("../../res/fonts/CrimsonPro-Regular.ttf"),
+    include_bytes!("../../res/fonts/CrimsonPro-Medium.ttf"),
+    include_bytes!("../../res/fonts/CrimsonPro-SemiBold.ttf"),
+    include_bytes!("../../res/fonts/CrimsonPro-Bold.ttf"),
 ];
 
 /// `kNumberSpacingType` / `kMonospacedNumbersSelector` (SFNTLayoutTypes.h).

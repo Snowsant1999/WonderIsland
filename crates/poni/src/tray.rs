@@ -34,7 +34,7 @@ impl Tray {
                 hIcon: icon,
                 ..Default::default()
             };
-            let tip: Vec<u16> = format!("Oyenza Studio {}", crate::version::VERSION).encode_utf16().collect();
+            let tip: Vec<u16> = format!("WonderIsland {}", crate::version::VERSION).encode_utf16().collect();
             nid.szTip[..tip.len()].copy_from_slice(&tip);
             if !Shell_NotifyIconW(NIM_ADD, &nid).as_bool() {
                 return Err(windows::core::Error::from_win32());
@@ -72,7 +72,7 @@ pub enum MenuCmd {
     OpenSettings,
     ReloadSettings,
     OpenDataFolder,
-    /// "About Oyenza Studio 0.2.3 (…)": opens this version's release notes.
+    /// "About WonderIsland 0.2.3 (…)": opens this version's release notes.
     About,
     /// "Lyrics by LRCLIB": opens lrclib.net.
     LyricsCredit,
@@ -85,7 +85,7 @@ pub enum MenuCmd {
     OyenzaOpen,
     ToggleOyenzaAmounts,
     RecordScreen,
-    /// "Update to Oyenza Studio 0.2.5…" (`crate::updates`).
+    /// "Update to WonderIsland 0.2.5…" (`crate::updates`).
     Update,
     /// "Check for updates…": read the update file now (`crate::updates`).
     CheckForUpdates,
@@ -105,10 +105,9 @@ fn item(label: &str, cmd: MenuCmd, checked: bool) -> MenuItem {
 }
 
 /// An idle look as the menu names it. In the Oyen theme the eyes are Oyen's own.
-fn idle_label(s: IdleStyle, theme: Theme) -> &'static str {
+fn idle_label(s: IdleStyle, _theme: Theme) -> &'static str {
     match s {
         IdleStyle::Clock => "Clock",
-        IdleStyle::Eyes if theme == Theme::Oyen => "Oyen",
         IdleStyle::Eyes => "Eyes",
         IdleStyle::Minimal => "Minimal",
         IdleStyle::Hidden => "Hidden until hover",
@@ -122,13 +121,11 @@ pub fn menu_items(s: &Settings, pinned: bool, oyenza: &OyenzaLink, recorder: boo
     // The look the theme draws is the one checked: outside Pill, Status shows the clock.
     let shown = crate::pill::status::shown(s.theme, s.idle_style);
     let style = |st: IdleStyle| item(idle_label(st, s.theme), MenuCmd::ToggleIdleStyle(st), shown == st);
-    let theme = |label: &str, t: Theme| item(label, MenuCmd::SetTheme(t), s.theme == t);
     let fullscreen = |label: &str, hide: bool| item(label, MenuCmd::SetHideFullscreen(hide), s.hide_in_fullscreen == hide);
     let mut items = vec![
         item("Settings…", MenuCmd::ShowSettings, false),
         MenuItem::Separator,
         item("Keep island open", MenuCmd::TogglePinned, pinned),
-        MenuItem::Sub { label: "Theme".into(), items: vec![theme("Classic", Theme::Classic), theme("Oyen", Theme::Oyen), theme("Glass", Theme::Glass), theme("Pill", Theme::Pill)] },
         // The status bar is listed only in Pill, as on the Settings page: the
         // other themes would draw the clock for it.
         MenuItem::Sub { label: "Idle look".into(), items: crate::pill::status::looks(s.theme).iter().map(|l| style(*l)).collect() },
@@ -157,7 +154,7 @@ pub fn menu_items(s: &Settings, pinned: bool, oyenza: &OyenzaLink, recorder: boo
         // Which version and build this is, as the Mac menu says it.
         item(&crate::version::about_label(), MenuCmd::About, false),
         MenuItem::Separator,
-        item("Quit Oyenza Studio", MenuCmd::Quit, false),
+        item("Quit WonderIsland", MenuCmd::Quit, false),
     ];
     // Only while the System add-on is on: its page's history, under Sounds.
     if s.system_on() {
@@ -172,7 +169,7 @@ pub fn menu_items(s: &Settings, pinned: bool, oyenza: &OyenzaLink, recorder: boo
     match update {
         // A new version first, until it is installed.
         UpdateLine::Offer(v) => {
-            items.splice(0..0, [item(&format!("Update to Oyenza Studio {v}…"), MenuCmd::Update, false), MenuItem::Separator]);
+            items.splice(0..0, [item(&format!("Update to WonderIsland {v}…"), MenuCmd::Update, false), MenuItem::Separator]);
         }
         // Otherwise a look on request, under the version line.
         UpdateLine::Check => {
@@ -301,7 +298,7 @@ mod tests {
             .collect();
         let at = |cmd: MenuCmd| labels.iter().position(|l| l.1 == cmd);
         let about = at(MenuCmd::About).expect("no About line");
-        assert!(labels[about].0.starts_with(&format!("About Oyenza Studio {}", env!("CARGO_PKG_VERSION"))), "{}", labels[about].0);
+        assert!(labels[about].0.starts_with(&format!("About WonderIsland {}", env!("CARGO_PKG_VERSION"))), "{}", labels[about].0);
         // Right above Quit, with the lyrics credit kept above it.
         assert_eq!(at(MenuCmd::Quit), Some(about + 1));
         assert_eq!(at(MenuCmd::LyricsCredit), Some(about - 1));
@@ -314,7 +311,7 @@ mod tests {
             Some(MenuItem::Item { label, cmd, .. }) => Some((label, cmd)),
             _ => None,
         };
-        assert_eq!(first(UpdateLine::Offer("0.2.5".into())), Some(("Update to Oyenza Studio 0.2.5…".to_string(), MenuCmd::Update)));
+        assert_eq!(first(UpdateLine::Offer("0.2.5".into())), Some(("Update to WonderIsland 0.2.5…".to_string(), MenuCmd::Update)));
         assert_eq!(first(UpdateLine::None).map(|(_, cmd)| cmd), Some(MenuCmd::RecordScreen));
         assert_eq!(first(UpdateLine::Check).map(|(_, cmd)| cmd), Some(MenuCmd::RecordScreen));
     }
@@ -377,13 +374,13 @@ mod tests {
 
     #[test]
     fn status_bar_is_listed_only_in_the_pill_theme() {
-        let pill = Settings { theme: Theme::Pill, idle_style: IdleStyle::Status, ..Settings::default() };
+        let pill = Settings { theme: Theme::Wonderland, idle_style: IdleStyle::Status, ..Settings::default() };
         let labels: Vec<String> = idle_choices(&pill).into_iter().map(|c| c.0).collect();
         assert_eq!(labels, ["Clock", "Eyes", "Minimal", "Hidden until hover", "Status bar"]);
         assert_eq!(idle_choices(&pill).last(), Some(&("Status bar".to_string(), true)));
         // Another theme draws the clock for the status bar: Clock is checked,
         // and Status comes back with Pill.
-        for theme in [Theme::Classic, Theme::Oyen, Theme::Glass] {
+        for theme in [Theme::Wonderland] {
             let s = Settings { theme, ..pill.clone() };
             let choices = idle_choices(&s);
             assert_eq!(choices.len(), 4, "{theme:?}");

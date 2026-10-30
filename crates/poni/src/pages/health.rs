@@ -2,7 +2,7 @@
 //! against the goal, the week as bars, and where the numbers came from.
 //!
 //! The numbers come from the person's phone: Oyenza reads daily totals from
-//! Apple Health or Health Connect and, with Show on Oyenza Studio turned on
+//! Apple Health or Health Connect and, with Show on WonderIsland turned on
 //! there, a signed-in Oyenza Studio receives them (`AppState::health`, in
 //! memory only). Without numbers the page says how to get them; numbers more
 //! than two hours old stay, with a line asking to open Oyenza on the phone.
@@ -164,7 +164,7 @@ fn draw_not_connected(ui: &mut Ui, st: &mut AppState, r: Rect, center_y: f32) {
     let signed_in = matches!(st.oyenza.link, OyenzaLink::Connected { .. });
     let title = "Your steps, from your phone";
     let body = if signed_in {
-        "Open Oyenza on your iPhone or Android and, under your steps in Health (Sehat), turn on Show on Oyenza Studio. Your daily steps then show here."
+        "Open Oyenza on your iPhone or Android and, under your steps in Health (Sehat), turn on Show on WonderIsland. Your daily steps then show here."
     } else {
         "Oyenza on your iPhone or Android reads them from Apple Health or Health Connect. Sign in to Oyenza to see them here."
     };

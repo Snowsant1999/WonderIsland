@@ -182,7 +182,7 @@ mod tests {
 
     fn state(battery: bool, use_24h: bool) -> AppState {
         let mut st = AppState::new(Settings::default(), Store::default());
-        st.settings.theme = Theme::Pill;
+        st.settings.theme = Theme::Wonderland;
         st.settings.use_24h = use_24h;
         st.power = PowerState { has_battery: battery, percent: 99, charging: false, on_ac: !battery, saver: false };
         st
