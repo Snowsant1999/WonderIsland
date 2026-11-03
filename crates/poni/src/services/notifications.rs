@@ -1,20 +1,10 @@
-//! Other apps' notifications for the Notifications add-on, through Windows'
-//! notification listener (`Windows.UI.Notifications.Management`).
-//!
-//! Windows lets only an app with a package identity listen (the capability
-//! is in installer/msix/AppxManifest.xml), so the download from GitHub says
-//! so and does nothing more. In the Store copy, switching the add-on on asks
-//! Windows once (its question needs the UI thread); once it's allowed, the
-//! listener's NotificationChanged event brings each new notification on a
-//! thread of Windows' own, and its app and words go to the UI thread as
-//! `AppEvent::Notify`. Every answer from Windows reaches the UI thread as
-//! `NotifyEvent::Access`, which the app hands back to [`Listener::follow`]. Nothing polls and no thread of ours waits, so the
-//! add-on costs nothing at rest; nothing is written down
-//! (`poni_core::notifications` decides what the notice says).
-
 use crate::events::{AppEvent, EventSink};
 use crate::state::NotifyAccess;
 use poni_core::notifications::Seen;
+use std::collections::HashSet;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
 use windows::core::Result;
 use windows::Foundation::{AsyncOperationCompletedHandler, AsyncStatus, EventRegistrationToken, TypedEventHandler};
 use windows::UI::Notifications::Management::{UserNotificationListener, UserNotificationListenerAccessStatus};
@@ -32,11 +22,12 @@ pub enum NotifyEvent {
     Seen(Seen),
 }
 
-/// The listener while the add-on is on (None in the download: no package).
+/// The listener while the add-on is on.
 pub struct Listener {
     listener: UserNotificationListener,
     token: Option<EventRegistrationToken>,
     sink: EventSink,
+    running: Arc<AtomicBool>,
 }
 
 impl Listener {
@@ -45,11 +36,6 @@ impl Listener {
     /// (at a start with the add-on on, the page offers Allow instead).
     /// None, with the reason sent, when this copy can't listen at all.
     pub fn start(sink: EventSink, ask: bool) -> Option<Self> {
-        if !crate::autostart::packaged() {
-            crate::pinfo!("notifications: no package identity, so Windows won't let this copy listen");
-            sink.send(AppEvent::Notify(NotifyEvent::Access(NotifyAccess::NoPackage)));
-            return None;
-        }
         let listener = match UserNotificationListener::Current() {
             Ok(l) => l,
             Err(e) => {
@@ -58,7 +44,12 @@ impl Listener {
                 return None;
             }
         };
-        let mut me = Self { listener, token: None, sink };
+        let mut me = Self {
+            listener,
+            token: None,
+            sink,
+            running: Arc::new(AtomicBool::new(false)),
+        };
         match me.access() {
             NotifyAccess::Ask if ask => me.ask(),
             a => me.tell(a),
@@ -128,62 +119,131 @@ impl Listener {
         }
     }
 
-    /// Start hearing new notifications, and list the apps already in
-    /// Windows' list for the page (once, on a thread of its own).
+    /// Start hearing new notifications.
+    /// In packaged apps, NotificationChanged event works.
+    /// In unpackaged apps, Windows returns 0x80070490 on event registration,
+    /// so we seamlessly fall back to lightweight async polling of toast notifications!
     fn listen(&mut self) {
-        if self.token.is_some() {
+        if self.running.load(Ordering::SeqCst) || self.token.is_some() {
             return;
         }
+
+        // Try push event first
         let sink = self.sink.clone();
         let handler = TypedEventHandler::<UserNotificationListener, UserNotificationChangedEventArgs>::new(move |sender, args| {
             let (Some(listener), Some(args)) = (sender.as_ref(), args.as_ref()) else { return Ok(()) };
             if args.ChangeKind()? != UserNotificationChangedKind::Added {
                 return Ok(());
             }
-            // One that can't be read (gone already, no words) is skipped.
             match listener.GetNotification(args.UserNotificationId()?).and_then(|n| read(&n)) {
                 Ok(seen) => sink.send(AppEvent::Notify(NotifyEvent::Seen(seen))),
                 Err(e) => crate::pinfo!("notifications: one skipped: {e}"),
             }
             Ok(())
         });
+
         match self.listener.NotificationChanged(&handler) {
             Ok(token) => {
-                crate::pinfo!("notifications: listening");
+                crate::pinfo!("notifications: listening via NotificationChanged event");
                 self.token = Some(token);
             }
-            Err(e) => {
-                crate::pwarn!("notifications: couldn't listen: {e}");
-                self.tell(NotifyAccess::Failed);
-                return;
+            Err(_e) => {
+                // Windows requires package identity for push event, but allows pull polling!
+                crate::pinfo!("notifications: push event registration unavailable; using polling fallback");
+                self.start_polling();
             }
         }
-        let (listener, sink) = (self.listener.clone(), self.sink.clone());
-        let spawned = std::thread::Builder::new().name("poni-notify-apps".into()).spawn(move || {
-            // `.get()` waits, so it runs here, never on the UI thread.
-            let apps = listener.GetNotificationsAsync(NotificationKinds::Toast).and_then(|op| op.get()).and_then(|list| {
-                let mut apps: Vec<(String, String)> = Vec::new();
-                for i in 0..list.Size()? {
-                    if let Ok((id, name)) = list.GetAt(i).and_then(|n| app_of(&n)) {
-                        if !apps.iter().any(|a| a.0 == id) {
-                            apps.push((id, name));
+
+        // Apps list and historical notifications are populated inside the polling thread.
+    }
+
+    /// Background polling fallback for unpackaged execution (checks for new toast notifications every 1.5s).
+    /// Creates a fresh UserNotificationListener::Current() inside the thread to avoid COM thread marshalling errors.
+    fn start_polling(&mut self) {
+        let running = self.running.clone();
+        running.store(true, Ordering::SeqCst);
+        let sink = self.sink.clone();
+
+        let _ = std::thread::Builder::new().name("poni-notify-poll".into()).spawn(move || {
+            // Get a fresh listener on this thread (COM WinRT objects must be used on the thread they were created)
+            let listener = match UserNotificationListener::Current() {
+                Ok(l) => l,
+                Err(e) => {
+                    crate::pwarn!("notifications: poll thread: can't get listener: {e}");
+                    return;
+                }
+            };
+
+            // Seed known notification IDs so historical ones don't trigger alerts
+            let mut known_ids: HashSet<u32> = HashSet::new();
+            if let Ok(list) = listener.GetNotificationsAsync(NotificationKinds::Toast).and_then(|op| op.get()) {
+                if let Ok(size) = list.Size() {
+                    for i in 0..size {
+                        if let Ok(n) = list.GetAt(i) {
+                            if let Ok(id) = n.Id() {
+                                known_ids.insert(id);
+                            }
                         }
                     }
                 }
-                Ok(apps)
-            });
-            match apps {
-                Ok(apps) => sink.send(AppEvent::Notify(NotifyEvent::Apps(apps))),
-                Err(e) => crate::pinfo!("notifications: Windows' list unreadable: {e}"),
+                crate::pinfo!("notifications: polling started; {} existing notifications seeded", known_ids.len());
             }
+
+            // Also send apps list from this thread's fresh listener
+            let mut apps: Vec<(String, String)> = Vec::new();
+            if let Ok(list) = listener.GetNotificationsAsync(NotificationKinds::Toast).and_then(|op| op.get()) {
+                if let Ok(size) = list.Size() {
+                    for i in 0..size {
+                        if let Ok(n) = list.GetAt(i) {
+                            if let Ok((id, name)) = app_of(&n) {
+                                if !apps.iter().any(|a| a.0 == id) {
+                                    apps.push((id, name));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if !apps.is_empty() {
+                sink.send(AppEvent::Notify(NotifyEvent::Apps(apps)));
+            }
+
+            while running.load(Ordering::SeqCst) {
+                std::thread::sleep(Duration::from_millis(1500));
+                if !running.load(Ordering::SeqCst) {
+                    break;
+                }
+
+                if let Ok(list) = listener.GetNotificationsAsync(NotificationKinds::Toast).and_then(|op| op.get()) {
+                    if let Ok(size) = list.Size() {
+                        let mut current_ids: HashSet<u32> = HashSet::new();
+                        for i in 0..size {
+                            if let Ok(n) = list.GetAt(i) {
+                                if let Ok(id) = n.Id() {
+                                    current_ids.insert(id);
+                                    if !known_ids.contains(&id) {
+                                        match read(&n) {
+                                            Ok(seen) => {
+                                                crate::pinfo!("notifications: new notification from {}", seen.app);
+                                                sink.send(AppEvent::Notify(NotifyEvent::Seen(seen)));
+                                            }
+                                            Err(e) => crate::pinfo!("notifications: one skipped: {e}"),
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        known_ids = current_ids;
+                    }
+                }
+            }
+            crate::pinfo!("notifications: polling thread stopped");
         });
-        if let Err(e) = spawned {
-            crate::pwarn!("notifications: no thread to list the apps on: {e}");
-        }
     }
 
     /// Stop hearing them (the add-on off, or Windows no longer allows it).
     pub fn stop(&mut self) {
+        self.running.store(false, Ordering::SeqCst);
         if let Some(token) = self.token.take() {
             if let Err(e) = self.listener.RemoveNotificationChanged(token) {
                 crate::pwarn!("notifications: stopping failed: {e}");
@@ -205,12 +265,13 @@ fn access_of(s: UserNotificationListenerAccessStatus, asked: bool) -> NotifyAcce
     match s {
         UserNotificationListenerAccessStatus::Allowed => NotifyAccess::Allowed,
         UserNotificationListenerAccessStatus::Denied => NotifyAccess::Denied,
-        _ if asked => NotifyAccess::Unanswered,
-        _ => NotifyAccess::Ask,
+        UserNotificationListenerAccessStatus::Unspecified if asked => NotifyAccess::Unanswered,
+        UserNotificationListenerAccessStatus::Unspecified => NotifyAccess::Ask,
+        _ => NotifyAccess::Failed,
     }
 }
 
-/// The app a notification came from: its AppUserModelID and name.
+/// A notification's app (id, display name).
 fn app_of(n: &UserNotification) -> Result<(String, String)> {
     let info = n.AppInfo()?;
     let id = info.AppUserModelId()?.to_string();
@@ -235,9 +296,6 @@ fn read(n: &UserNotification) -> Result<Seen> {
 /// For the self-test: what this copy can do, without asking Windows anything.
 /// Err when a packaged copy can't reach the listener.
 pub fn describe() -> std::result::Result<String, String> {
-    if !crate::autostart::packaged() {
-        return Ok("installer build: no package identity, so the add-on says it needs the Store copy".into());
-    }
-    let status = UserNotificationListener::Current().and_then(|l| l.GetAccessStatus()).map_err(|e| format!("packaged: listener unavailable: {e}"))?;
-    Ok(format!("packaged: Windows says {:?}", access_of(status, false)))
+    let status = UserNotificationListener::Current().and_then(|l| l.GetAccessStatus()).map_err(|e| format!("listener unavailable: {e}"))?;
+    Ok(format!("Windows says {:?}", access_of(status, false)))
 }

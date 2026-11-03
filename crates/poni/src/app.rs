@@ -69,6 +69,8 @@ const DROP_PEEK_EVERY_S: f64 = 30.0;
 const HOTKEY_PEEK: i32 = 1;
 /// Alt+Shift+S pauses and resumes the Script page's reading from any app.
 const HOTKEY_SCRIPT: i32 = 2;
+/// Ctrl+Shift+M toggles Drink Me compact island mode.
+const HOTKEY_DRINK_ME: i32 = 3;
 /// Record pressed: how long the Record page says "Opening the recorder"
 /// without word from it (a cold start of the recorder takes a few seconds).
 const REC_OPENING_S: f64 = 15.0;
@@ -541,6 +543,13 @@ pub struct App {
     /// The Notifications add-on's listener while it is on; None while it's
     /// off, in the download (no package identity) and in the self-test.
     notify: Option<services::notifications::Listener>,
+    /// Fall into the rabbit hole (A5): spring animating Alice dropping down on first open.
+    rabbit_hole: Option<(poni_core::spring::Spring, f64)>,
+    rabbit_hole_done: bool,
+    /// Rabbit hole startup drop entrance animation.
+    startup_fall: Option<poni_core::spring::Spring>,
+    /// A4 Drink Me: spring animating the compact-mode scale factor (1.0 = normal, <1 = compact).
+    drink_me_scale: poni_core::spring::Spring,
 }
 
 /// The island window: position and size in screen pixels.
@@ -727,6 +736,10 @@ impl App {
             laid_floating: false,
             updater: None,
             notify: None,
+            rabbit_hole: None,
+            rabbit_hole_done: false,
+            startup_fall: None,
+            drink_me_scale: poni_core::spring::Spring::new(1.0, 380.0, 24.0),
         })
     }
 
@@ -735,6 +748,16 @@ impl App {
         let fake = self.selftest.is_some();
         self.st.power = services::power::query();
         services::power::register(self.helper);
+        self.set_drink_me_hotkey(true);
+        // Snap compact scale to correct initial value (no animation on startup)
+        if self.st.settings.drink_me {
+            self.drink_me_scale.snap(0.84);
+        }
+        if self.st.settings.rabbit_hole_fall {
+            let mut sp = poni_core::spring::Spring::new(-50.0, 160.0, 15.0);
+            sp.set_target(0.0);
+            self.startup_fall = Some(sp);
+        }
         if !fake {
             self.services = Some(Services::start(&self.sink, self.hwnd, self.helper, &self.st.settings, self.oyenza_activity()));
             self.sync_top_watch();
@@ -787,6 +810,7 @@ impl App {
         self.frames = None;
         self.set_peek_hotkey(false);
         self.set_script_hotkey(false);
+        self.set_drink_me_hotkey(false);
         self.glass.stop(self.hwnd, &mut self.gfx);
         if let Some(p) = self.phone.take() {
             p.stop();
@@ -1330,6 +1354,18 @@ impl App {
                 self.request_frame();
                 Some(LRESULT(0))
             }
+            WM_HOTKEY if wp.0 == HOTKEY_DRINK_ME as usize => {
+                self.st.settings.drink_me = !self.st.settings.drink_me;
+                self.st.cmd(Command::SaveSettings);
+                // Animate scale spring: compact -> 0.84 (slight undershoot gives bounce), normal -> 1.0
+                let scale_target = if self.st.settings.drink_me { 0.84 } else { 1.0 };
+                self.drink_me_scale.set_target(scale_target);
+                let target = self.geom_for(&self.mode);
+                // cross-fade content so it flashes then re-appears at new size
+                self.island.set_target(target, self.st.now, true);
+                self.request_frame();
+                Some(LRESULT(0))
+            }
             WM_QUERYENDSESSION => Some(LRESULT(1)),
             WM_ENDSESSION => {
                 self.save_now();
@@ -1853,9 +1889,9 @@ impl App {
                 let fresh = oyenza::unseen(&mut o.shown, &arrived);
                 if let Some(n) = oyenza::money_notice(&fresh) {
                     let (icon, color) = match n.flow {
-                        Some(oyenza::Flow::In) => (Icon::MoneyIn, palette::GREEN),
-                        Some(oyenza::Flow::Out) => (Icon::MoneyOut, palette::BLUE),
-                        _ => (Icon::Wallet, palette::BLUE),
+                        Some(oyenza::Flow::In) => (Icon::Diamond, palette::GREEN),
+                        Some(oyenza::Flow::Out) => (Icon::Diamond, palette::BLUE),
+                        _ => (Icon::Diamond, palette::BLUE),
                     };
                     self.oyenza_notice(icon, color, n.title, n.shown, Some(n.hidden));
                 }
@@ -2021,7 +2057,7 @@ impl App {
         st.store.oyenza_noticed.push(oyenza::notice_key(&b));
         st.save();
         let (shown, hidden) = oyenza::bill_subtitles(&b);
-        let icon = if b.is_card() { Icon::Card } else { Icon::Calendar };
+        let icon = Icon::Diamond;
         self.oyenza_notice(icon, palette::ORANGE, oyenza::bill_title(&b, today), shown, hidden);
     }
 
@@ -2581,6 +2617,13 @@ impl App {
     fn expand(&mut self) {
         if !self.expanded {
             self.expanded = true;
+            if self.st.settings.rabbit_hole_fall && !self.rabbit_hole_done {
+                self.rabbit_hole_done = true;
+                // Alice tumbles down into the rabbit hole (1.5s physics animation)
+                let mut sp = poni_core::spring::Spring::new(-140.0, 90.0, 14.0);
+                sp.set_target(0.0);
+                self.rabbit_hole = Some((sp, self.st.now));
+            }
             self.cancel_hover();
             // A recorder installed or removed since the last look (one registry read).
             if self.selftest.is_none() {
@@ -2899,6 +2942,19 @@ impl App {
             } else {
                 let _ = UnregisterHotKey(self.helper, HOTKEY_SCRIPT);
                 self.script_hotkey = false;
+            }
+        }
+    }
+
+    fn set_drink_me_hotkey(&mut self, on: bool) {
+        unsafe {
+            if on {
+                match RegisterHotKey(self.helper, HOTKEY_DRINK_ME, MOD_CONTROL | MOD_SHIFT | MOD_NOREPEAT, u32::from(b'M')) {
+                    Ok(()) => {}
+                    Err(e) => pwarn!("drink me: Ctrl+Shift+M is taken ({e})"),
+                }
+            } else {
+                let _ = UnregisterHotKey(self.helper, HOTKEY_DRINK_ME);
             }
         }
     }
@@ -3312,7 +3368,15 @@ impl App {
     /// Island geometry for `m`. The resting pill lifts a little under the
     /// pointer: instant feedback while the hover dwell runs.
     fn geom_for(&self, m: &Mode) -> Geom {
-        let g = activities::geom(m, &self.st);
+        let mut g = activities::geom(m, &self.st);
+        if self.st.settings.drink_me && !matches!(m, Mode::Expanded(_)) {
+            // Use spring value for smooth bounce animation (target 0.84, overshoots slightly)
+            let s = self.drink_me_scale.value.clamp(0.70, 1.05);
+            let sh = s * 0.97; // height shrinks a touch more (feels more like a squeeze)
+            g.w = (g.w * s).round();
+            g.h = (g.h * sh).round();
+            g.r = (g.r * sh).round();
+        }
         let liftable = match m {
             Mode::Idle => self.st.settings.idle_style != IdleStyle::Hidden,
             Mode::Activity(_) => true,
@@ -3400,6 +3464,9 @@ impl App {
             self.tick();
             self.run_commands(deferred);
             self.paint_settings_if_dirty(deferred);
+        if !self.st.settings.rabbit_hole_fall {
+            self.rabbit_hole_done = false;
+        }
             self.clock.set_active(false);
             self.motion = None;
             self.schedule_wake();
@@ -3488,14 +3555,37 @@ impl App {
         // The Pill theme floats the island below the top edge.
         self.island.set_floating(pill::on(self.st.settings.theme).then_some(pill::TOP_GAP));
         self.island.step(dt, now);
+        if let Some(ref mut sp) = self.startup_fall {
+            sp.step(dt);
+            if sp.is_settled() {
+                self.startup_fall = None;
+            }
+        }
+        if let Some((ref mut sp, start_t)) = self.rabbit_hole {
+            sp.step(dt);
+            if (now - start_t) >= 1.6 {
+                self.rabbit_hole = None;
+            }
+        }
+        // A4 Drink Me scale spring: step and re-target geom while settling
+        if !self.drink_me_scale.is_settled() {
+            self.drink_me_scale.step(dt);
+            // keep pushing island target so its springs follow the scale spring
+            let target = self.geom_for(&self.mode);
+            self.island.set_target(target, now, false);
+            self.request_frame();
+        }
         self.sync_room();
         self.ensure_room();
         self.note_motion(retarget, rendered_at, period, dt as f64);
 
         let scale = self.gfx.scale();
         let (sw, sh) = (self.surface.w, self.surface.h);
-        let body = self.island.body_rect_at(self.cx);
-        let canvas_r = self.island.canvas_rect_at(self.cx);
+        let drop_y = self.startup_fall.as_ref().map(|s| s.value).unwrap_or(0.0);
+        let mut body = self.island.body_rect_at(self.cx);
+        body.y += drop_y;
+        let mut canvas_r = self.island.canvas_rect_at(self.cx);
+        canvas_r.y += drop_y;
         let geom = self.island.current();
         let content_alpha = self.island.content_alpha();
         // Clear what the island covered last frame as well as this one.
@@ -3652,6 +3742,32 @@ impl App {
                     canvas.pop_shape_mask();
                     canvas.unclip();
                 }
+                // A5: Rabbit hole fall - Alice visibly tumbles into the open island card with wobble and soft bounce
+                if let Some((ref sp, start_t)) = self.rabbit_hole {
+                    let elapsed = (now - start_t) as f32;
+                    let y = sp.value;
+                    let alpha = ((1.6 - elapsed) / 0.4).clamp(0.0, 1.0);
+                    if alpha > 0.01 {
+                        let alice = crate::oyen::alice_image();
+                        let cx = body.center().x;
+                        let cy = body.center().y + y;
+                        let wobble = (elapsed * 6.5).sin() * 14.0;
+                        let (sin, cos) = wobble.to_radians().sin_cos();
+                        let k = 0.70;
+                        let m = Matrix3x2 {
+                            M11: cos * k,
+                            M12: sin * k,
+                            M21: -sin * k,
+                            M22: cos * k,
+                            M31: cx,
+                            M32: cy,
+                        };
+                        canvas.with_alpha(alpha, |c| {
+                            c.fill_circle(Point::new(cx, cy), 52.0, Color::black(0.28 * alpha));
+                            c.draw_sprite(&alice, Rect::new(-65.0, -50.0, 130.0, 120.0), m);
+                        });
+                    }
+                }
                 drop(canvas);
                 if let Err(e) = self.gfx.end() {
                     pwarn!("EndDraw failed: {e}");
@@ -3741,7 +3857,9 @@ impl App {
             || glass_moving
             || !self.st.cmds.is_empty()
             || self.outgoing.is_some()
-            || self.page_anim.is_some();
+            || self.page_anim.is_some()
+            || self.rabbit_hole.is_some()
+            || self.startup_fall.is_some();
         // The display mode's rate, not the measured period: a divisor that
         // flips between 1 and 2 would be the uneven cadence it exists to avoid.
         let hz = self.clock.nominal_hz();
@@ -4722,6 +4840,16 @@ impl App {
                 let (shows, changed) = self.st.settings.notifications.remember(&seen.app_id, &seen.app);
                 if changed {
                     self.st.cmd(Command::SaveSettings);
+                }
+                // Record in session history regardless of toggle (newest first, max 5).
+                {
+                    use poni_core::notifications::{HistoryEntry, MAX_HISTORY};
+                    let title = seen.lines.first().cloned().unwrap_or_default();
+                    let body  = seen.lines.get(1).cloned().unwrap_or_default();
+                    let entry = HistoryEntry { app: seen.app.clone(), title, body, at: self.st.now };
+                    let h = &mut self.st.settings.notifications.history;
+                    h.insert(0, entry);
+                    h.truncate(MAX_HISTORY);
                 }
                 // Nobody would see it: Windows keeps it in its own list.
                 if !shows || self.locked || self.display_off {

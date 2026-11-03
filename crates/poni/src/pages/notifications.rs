@@ -39,10 +39,48 @@ const MIN_ROWS: usize = 2;
 /// The island's notice for one notification (None: it has no words): who
 /// it's from and the message, or Show for what the person keeps hidden, as
 /// in a Money in notice; Open, or a click on it, opens the app.
+/// Wonderland card suit mapping for notifications (PRD A3):
+/// - Heart (♥): Personal messaging / chat (WhatsApp, Telegram, Phone Link, Signal, Discord, etc.)
+/// - Spade (♠): System, security, updates, hardware
+/// - Diamond (♦): Financial, banking, money, transactions
+/// - Club (♣): General apps, web browsers, work emails
+pub fn suit_for_notification(app_id: &str, app_name: &str) -> Icon {
+    let id = app_id.to_lowercase();
+    let name = app_name.to_lowercase();
+
+    // Financial / Money -> Diamond
+    if id.contains("bank") || id.contains("pay") || id.contains("wallet") || id.contains("finance")
+        || name.contains("bank") || name.contains("bca") || name.contains("mandiri") || name.contains("dana")
+        || name.contains("gopay") || name.contains("ovo") || name.contains("paypal")
+    {
+        return Icon::Diamond;
+    }
+
+    // System / Security / Update -> Spade
+    if id.contains("security") || id.contains("system") || id.contains("update") || id.contains("defender")
+        || name.contains("security") || name.contains("system") || name.contains("update") || name.contains("windows")
+    {
+        return Icon::Spade;
+    }
+
+    // Chat / Messages / Social -> Heart
+    if id.contains("whatsapp") || id.contains("telegram") || id.contains("phonelink") || id.contains("phone")
+        || id.contains("signal") || id.contains("discord") || id.contains("slack") || id.contains("messenger")
+        || id.contains("teams") || name.contains("whatsapp") || name.contains("telegram") || name.contains("phone")
+        || name.contains("chat") || name.contains("message")
+    {
+        return Icon::Heart;
+    }
+
+    // Default general / web / mail -> Club
+    Icon::Club
+}
+
 pub fn message_notice(seen: &Seen, choices: &NotificationSettings, accent: Color, now: f64) -> Option<Notice> {
     let said = notifications::compose(seen, choices.who, choices.text)?;
+    let icon = suit_for_notification(&seen.app_id, &seen.app);
     Some(Notice {
-        icon: Icon::Message,
+        icon,
         color: notifications::color(&seen.app_id, &seen.app).unwrap_or(accent),
         title: said.title,
         title_dim: said.title_dim,
@@ -54,8 +92,18 @@ pub fn message_notice(seen: &Seen, choices: &NotificationSettings, accent: Color
     })
 }
 
+/// Height of history section: label + up to 5 rows of HIST_ROW_H each.
+pub const HIST_LABEL_H: f32 = 28.0;
+pub const HIST_ROW_H: f32 = 34.0;
+
+pub fn history_h(st: &AppState) -> f32 {
+    let n = st.settings.notifications.history.len();
+    if n == 0 { 0.0 } else { HIST_LABEL_H + n as f32 * HIST_ROW_H }
+}
+
 pub fn height(st: &AppState) -> f32 {
     ROWS_Y + st.settings.notifications.apps.len().clamp(MIN_ROWS, MAX_ROWS) as f32 * ROW_H
+        + history_h(st)
 }
 
 /// A button beside the line: its label, what it asks for, and whether it
@@ -140,6 +188,73 @@ pub fn draw(ui: &mut Ui, st: &mut AppState, area: Rect) {
     if switch_row(ui, wid("notify.text"), row(1, 1), "Message text", Some(text), accent) {
         st.settings.notifications.text = !text;
         st.cmd(Command::SaveSettings);
+    }
+
+    // ----- Recent history (last 5, session only) -----
+    draw_history(ui, st, area);
+}
+
+/// Draw the recent-history section below the two columns.
+/// Shows up to MAX_HISTORY entries (newest first); nothing when the list is empty.
+fn draw_history(ui: &mut Ui, st: &AppState, area: Rect) {
+    let history: Vec<(String, String, String, f64)> = st.settings.notifications.history
+        .iter()
+        .map(|e| (e.app.clone(), e.title.clone(), e.body.clone(), e.at))
+        .collect();
+    if history.is_empty() {
+        return;
+    }
+
+    // Base Y: below the cols section
+    let rows_used = st.settings.notifications.apps.len().clamp(MIN_ROWS, MAX_ROWS);
+    let base_y = area.y + ROWS_Y + rows_used as f32 * ROW_H;
+
+    // Divider
+    let px = 1.0 / ui.c.scale().max(0.5);
+    ui.c.fill_rect(Rect::new(area.x, base_y, area.w, px), Color::white(0.10));
+
+    // Section label
+    let label_st = TextStyle::caption().weight(Weight::Semibold).color(palette::TEXT_FAINT);
+    ui.c.text("RECENT", Rect::new(area.x, base_y + 8.0, area.w, 14.0), &label_st);
+
+    // Rows
+    let now = st.now;
+    let accent = st.accent;
+    for (i, (app, title, body, at)) in history.iter().enumerate() {
+        let ry = base_y + HIST_LABEL_H + i as f32 * HIST_ROW_H;
+        let row_r = Rect::new(area.x, ry, area.w, HIST_ROW_H);
+
+        // Suit icon (card suit for this app)
+        let suit = suit_for_notification("", app);
+        let icon_r = Rect::from_center(Point::new(area.x + 10.0, ry + HIST_ROW_H / 2.0), 14.0, 14.0);
+        ui.c.icon(suit, icon_r, accent.with_alpha(0.70));
+
+        // Text block
+        let tx = area.x + 24.0;
+        let tw = area.w - 24.0 - 38.0;
+        let top_label = if title.is_empty() { app.as_str() } else { title.as_str() };
+        ui.c.text(top_label, Rect::new(tx, ry + 4.0, tw, 15.0), &TextStyle::body().weight(Weight::Medium));
+        if !body.is_empty() {
+            ui.c.text(body, Rect::new(tx, ry + 18.0, tw, 13.0), &TextStyle::footnote().color(palette::TEXT_DIM));
+        } else if !title.is_empty() {
+            // show app name as subtitle when title is the sender
+            ui.c.text(app, Rect::new(tx, ry + 18.0, tw, 13.0), &TextStyle::footnote().color(palette::TEXT_DIM));
+        }
+
+        // Relative time (e.g. "2m ago")
+        let elapsed = (now - at).max(0.0) as u64;
+        let ago = if elapsed < 60 { format!("{elapsed}s") }
+                  else if elapsed < 3600 { format!("{} m", elapsed / 60) }
+                  else { format!("{} h", elapsed / 3600) };
+        let time_x = area.x + area.w - 36.0;
+        ui.c.text(&ago, Rect::new(time_x, ry + 4.0, 36.0, 13.0), &TextStyle::footnote().color(palette::TEXT_FAINT));
+
+        // Row separator (thin line between rows)
+        if i + 1 < history.len() {
+            let sep_y = ry + HIST_ROW_H - px;
+            ui.c.fill_rect(Rect::new(area.x + 24.0, sep_y, area.w - 24.0, px), Color::white(0.06));
+        }
+        let _ = row_r;
     }
 }
 

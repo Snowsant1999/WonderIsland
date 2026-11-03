@@ -83,9 +83,9 @@ const BOLT_VISIBLE: f32 = BOLT * 14.0 / 24.0;
 const BADGE_GAP: f32 = 6.0;
 /// Oyen theme: the head's width (DIPs) in the idle "Oyen" look, beside the
 /// idle clock and in the media pill, and the clock pill's extra width for him.
-const OYEN_IDLE_W: f32 = 42.0;
-const OYEN_CLOCK_W: f32 = 26.0;
-const OYEN_MEDIA_W: f32 = 34.0;
+const OYEN_IDLE_W: f32 = 38.0;
+const OYEN_CLOCK_W: f32 = 28.0;
+const OYEN_MEDIA_W: f32 = 36.0;
 const OYEN_CLOCK_LEAD: f32 = 12.0 + OYEN_CLOCK_W;
 /// The countdown before a prayer: the moon, then "Maghrib 10 min" (152,
 /// its words' room), then its OK.
@@ -578,7 +578,7 @@ pub fn draw_music(ui: &mut Ui, st: &mut AppState, body: Rect, words: bool) {
         // Oyen bops to the music where the equalizer would be, and a
         // note floats up beside him on every beat (the ones on his
         // left make way for the words: the sung line or the title).
-        let (cx, bar_y) = (body.right() - 28.0, body.bottom() - 2.5);
+        let (cx, bar_y) = (body.right() - 32.0, body.bottom() - 2.5);
         st.ui.notes.step(st.now, playing);
         let sky = Rect::new(body.x, body.y + 1.0, body.w, body.h - 1.0);
         oyen::notes(ui.c, &st.ui.notes, st.now, cx, bar_y, sky, 1.0 - alpha);

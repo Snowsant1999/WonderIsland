@@ -101,6 +101,8 @@ enum Switch {
     Pronunciation,
     Sounds,
     Autostart,
+    RabbitHole,
+    DrinkMe,
 }
 
 /// What a row of the two columns holds: a switch, the full-screen choice
@@ -117,10 +119,11 @@ const LEFT: &[Row] = &[
     Row::Switch(Switch::Lyrics, "Synced lyrics"),
     Row::Switch(Switch::Pronunciation, "Lyrics pronunciation"),
     Row::Switch(Switch::Sounds, "Sounds"),
+    Row::Switch(Switch::DrinkMe, "Drink Me (Compact island)"),
 ];
 // The version took the row of the new versions' switch (Clipboard history's
 // before it), so the columns stay even.
-const RIGHT: &[Row] = &[Row::Version, Row::Fullscreen, Row::Switch(Switch::Autostart, "Start with Windows")];
+const RIGHT: &[Row] = &[Row::Version, Row::Fullscreen, Row::Switch(Switch::Autostart, "Start with Windows"), Row::Switch(Switch::RabbitHole, "Rabbit hole fall")];
 const COLUMNS: [&[Row]; 2] = [LEFT, RIGHT];
 /// Rows in the taller column.
 const ROWS: usize = if LEFT.len() > RIGHT.len() { LEFT.len() } else { RIGHT.len() };
@@ -507,6 +510,8 @@ fn switch_on(st: &AppState, sw: Switch) -> Option<bool> {
         Switch::Pronunciation => Some(s.lyrics_pronunciation),
         Switch::Sounds => Some(s.sounds),
         Switch::Autostart => st.ui.autostart,
+        Switch::RabbitHole => Some(s.rabbit_hole_fall),
+        Switch::DrinkMe => Some(s.drink_me),
     }
 }
 
@@ -516,6 +521,8 @@ fn flip(st: &mut AppState, sw: Switch, on: Option<bool>) {
         Switch::Lyrics => s.lyrics = !s.lyrics,
         Switch::Pronunciation => s.lyrics_pronunciation = !s.lyrics_pronunciation,
         Switch::Sounds => s.sounds = !s.sounds,
+        Switch::RabbitHole => s.rabbit_hole_fall = !s.rabbit_hole_fall,
+        Switch::DrinkMe => s.drink_me = !s.drink_me,
         Switch::Autostart => {
             if let Some(on) = on {
                 st.cmd(Command::SetAutostart(!on));
