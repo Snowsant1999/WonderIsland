@@ -508,6 +508,30 @@ fn draw_face(c: &mut Canvas, f: &Frame, origin: Point, k: f32, float: Color) {
             Paint::Green => GREEN,
             Paint::White => Color::white(1.0),
         };
+        // If this is a smiling/stroked eye, render it as a crisp, symmetrical kawaii '^' caret
+        if s.place == Place::Eye && s.stroke.is_some() {
+            let pts = s.path.points();
+            if pts.len() >= 2 {
+                let min_x = pts.iter().map(|p| p.x).fold(f64::INFINITY, f64::min);
+                let max_x = pts.iter().map(|p| p.x).fold(f64::NEG_INFINITY, f64::max);
+                let cx = (min_x + max_x) / 2.0;
+                let r = (max_x - min_x) / 2.0;
+                let cy = 6.163;
+                let p_left = map(oyen::Point::new(cx - r * 0.75, cy + r * 0.40));
+                let p_peak = map(oyen::Point::new(cx, cy - r * 0.70));
+                let p_right = map(oyen::Point::new(cx + r * 0.75, cy + r * 0.40));
+                let caret = vec![
+                    Seg::MoveTo(p_left.x, p_left.y),
+                    Seg::LineTo(p_peak.x, p_peak.y),
+                    Seg::LineTo(p_right.x, p_right.y),
+                ];
+                let w = s.stroke.unwrap_or(4.0) as f32 * stroke_k * 1.1;
+                c.with_alpha(s.opacity.clamp(0.0, 1.0) as f32, |c| {
+                    c.path(&caret, None, Some((color, w)));
+                });
+                continue;
+            }
+        }
         let path = segs(&s.path, &map);
         c.with_alpha(s.opacity.clamp(0.0, 1.0) as f32, |c| match s.stroke {
             Some(w) => c.path(&path, None, Some((color, w as f32 * stroke_k))),

@@ -437,7 +437,7 @@ pub fn pending_install() -> bool {
 /// headline, and Hide. Clicked, it opens the Update sheet.
 pub fn new_version_notice(rel: &Release, accent: Color, until: f64) -> Notice {
     Notice {
-        icon: Icon::Download,
+        icon: Icon::Spade,
         color: accent,
         title: "Update available".into(),
         title_dim: rel.version.clone(),

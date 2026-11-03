@@ -47,8 +47,24 @@ pub struct AppChoice {
     pub on: bool,
 }
 
+/// Max recent notifications kept in session memory (not saved to disk).
+pub const MAX_HISTORY: usize = 5;
+
+/// One entry in the recent-notifications history (session only, not saved to disk).
+#[derive(Clone, Debug, PartialEq)]
+pub struct HistoryEntry {
+    /// App name to display (e.g. `WhatsApp`).
+    pub app: String,
+    /// First meaningful line - sender name or notification title.
+    pub title: String,
+    /// Second line - the message body, if any.
+    pub body: String,
+    /// Unix time (seconds) when this was received this session.
+    pub at: f64,
+}
+
 /// The Notifications add-on's choices (`Settings::notifications`).
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct NotificationSettings {
     /// Show who a message is from. Off: the app's name, and Show for the rest.
@@ -58,11 +74,15 @@ pub struct NotificationSettings {
     /// The apps that sent a notification since the add-on came on, in the
     /// order they first did.
     pub apps: Vec<AppChoice>,
+    /// Last MAX_HISTORY notifications received this session (newest first).
+    /// Not serialised - reset on each restart.
+    #[serde(skip)]
+    pub history: Vec<HistoryEntry>,
 }
 
 impl Default for NotificationSettings {
     fn default() -> Self {
-        Self { who: true, text: true, apps: Vec::new() }
+        Self { who: true, text: true, apps: Vec::new(), history: Vec::new() }
     }
 }
 

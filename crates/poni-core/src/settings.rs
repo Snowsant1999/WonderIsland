@@ -122,6 +122,10 @@ pub struct Settings {
     pub notifications: crate::notifications::NotificationSettings,
     /// How Oyen talks on the IELTS page (Sopan, Gaul or Ngegas, the default).
     pub ielts_spice: Spice,
+    /// Play the Alice rabbit-hole falling animation on first island opening.
+    pub rabbit_hole_fall: bool,
+    /// Drink Me compact island mode (PRD A4)
+    pub drink_me: bool,
 }
 
 /// What the AI tab shows and whether it gives heads-up notices.
@@ -241,6 +245,8 @@ impl Default for Settings {
             record: RecordSettings::default(),
             notifications: crate::notifications::NotificationSettings::default(),
             ielts_spice: Spice::default(),
+            rabbit_hole_fall: true,
+            drink_me: false,
         }
     }
 }
