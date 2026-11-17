@@ -57,6 +57,46 @@ pub fn open(target: &str) {
     });
 }
 
+/// Explicit allow-list of URI schemes accepted by [`open_launcher_uri`].
+const LAUNCHER_SCHEMES: &[&str] = &[
+    "steam://",
+    "com.epicgames.launcher://",
+    "battlenet://",
+    "riotclient://",
+    "uplay://",
+    "xbox://",
+    "discord://",
+    "spotify://",
+    "vscode://",
+];
+
+fn is_allowed_launcher_uri(target: &str) -> bool {
+    let t = target.trim();
+    if t.is_empty() || t.chars().count() > MAX_TARGET_CHARS || t.chars().any(|c| c.is_control() || c.is_whitespace() || c == '"') {
+        return false;
+    }
+    let lower = t.to_ascii_lowercase();
+    LAUNCHER_SCHEMES.iter().any(|s| lower.starts_with(s) && t.len() > s.len())
+}
+
+/// Open a Rabbit Hole Launcher target: allows explicit game/app launcher URIs
+/// in [`LAUNCHER_SCHEMES`] as well as standard [`open`] paths and http(s) URLs.
+pub fn open_launcher_uri(target: &str) {
+    let t = target.trim();
+    if is_allowed_launcher_uri(t) {
+        let target = t.to_string();
+        run("launcher", move || {
+            let h = HSTRING::from(target.as_str());
+            let r = unsafe { ShellExecuteW(None, w!("open"), &h, None, None, SW_SHOWNORMAL) };
+            if (r.0 as isize) <= 32 {
+                crate::pwarn!("launcher failed ({}): {}", r.0 as isize, for_log(&target));
+            }
+        });
+        return;
+    }
+    open(t);
+}
+
 /// Open one of Oyenza Studio Recorder's action links (asynchronously). Only
 /// the shape `poni_core::recorder` builds reaches the shell.
 pub fn open_recorder_link(link: &str) {
@@ -399,5 +439,16 @@ mod tests {
         assert_eq!(for_log("a\nb"), "a?b");
         let long = "x".repeat(LOG_CHARS + 5);
         assert_eq!(for_log(&long).chars().count(), LOG_CHARS + 1);
+    }
+
+    #[test]
+    fn launcher_uri_allowlist() {
+        assert!(is_allowed_launcher_uri("steam://rungameid/730"));
+        assert!(is_allowed_launcher_uri("com.epicgames.launcher://apps/Fortnite"));
+        assert!(is_allowed_launcher_uri("vscode://file/d:/work"));
+        assert!(!is_allowed_launcher_uri("steam://"));
+        assert!(!is_allowed_launcher_uri("javascript:alert(1)"));
+        assert!(!is_allowed_launcher_uri("ms-settings:privacy"));
+        assert!(!is_allowed_launcher_uri("steam://open/main \"/evil\""));
     }
 }

@@ -1071,6 +1071,21 @@ impl App {
                         // The prayer countdown's OK, the same way.
                         self.input.pressed_id = None;
                         self.prayer_countdown_ok();
+                    } else if self.input.pressed_id == Some(wid("alice.pet")) {
+                        // Clicking Alice in the collapsed pill triggers her happy hop without expanding.
+                        self.input.pressed_id = None;
+                        self.cancel_hover();
+                        self.st.ui.alice_react_at = Some(self.st.now);
+                    } else if let Some(cmd) = match self.input.pressed_id {
+                        Some(id) if id == wid("pill.media.prev") => Some(MediaCmd::Prev),
+                        Some(id) if id == wid("pill.media.pp") => Some(MediaCmd::PlayPause),
+                        Some(id) if id == wid("pill.media.next") => Some(MediaCmd::Next),
+                        _ => None,
+                    } {
+                        // Mini media transport buttons in the collapsed pill act in place.
+                        self.input.pressed_id = None;
+                        self.cancel_hover();
+                        self.st.cmd(Command::Media(cmd));
                     } else {
                         // Clicking a notice jumps to its page (a new version's
                         // may be waiting under a volume change or a game's readout).
@@ -3710,7 +3725,8 @@ impl App {
                     } else {
                         canvas.push_shape_mask(body, geom.r, SHOULDER);
                     }
-                    crate::sky::draw(&mut canvas, body, self.st.local.hour as u8, self.st.local.minute as u8, self.expanded);
+                    let burst = crate::sky::burst_progress(self.st.ui.sky_burst_at, now);
+                    crate::sky::draw(&mut canvas, body, self.st.local.hour as u8, self.st.local.minute as u8, self.expanded, burst);
                     canvas.pop_shape_mask();
                     canvas.unclip();
                 }
@@ -4706,6 +4722,7 @@ impl App {
                     }
                 }
                 Command::OpenPath(p) => shell::open(&p),
+                Command::OpenLauncher(t) => shell::open_launcher_uri(&t),
                 Command::RevealPath(p) => shell::reveal(&p),
                 Command::DragOut(paths) => deferred.push(Deferred::DragOut(paths)),
                 Command::LoadThumb(p) => {
@@ -5475,7 +5492,10 @@ fn draw_content(
 ) -> (bool, bool, Option<bool>, bool) {
     let mut ui = Ui::new(c, input, hits, now);
     match mode {
-        Mode::Expanded(page) => pages::draw_expanded(&mut ui, st, lay, page, transition),
+        Mode::Expanded(page) => {
+            crate::sky::hit(&mut ui, st, lay);
+            pages::draw_expanded(&mut ui, st, lay, page, transition)
+        }
         _ => activities::draw(&mut ui, st, &mode, body),
     }
     (ui.repaint_requested(), ui.anim_requested(), ui.focus_request(), ui.live_requested())

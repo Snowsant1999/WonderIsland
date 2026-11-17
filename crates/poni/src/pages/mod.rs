@@ -16,6 +16,7 @@ pub mod downloads_offer;
 pub mod focus;
 pub mod health;
 pub mod ielts;
+pub mod launcher;
 pub mod media;
 pub mod notes;
 pub mod notifications;
@@ -61,6 +62,8 @@ pub enum PageKind {
     Shelf,
     Tasks,
     Focus,
+    /// Rabbit Hole Launcher (PRD B1): quick-launch shortcuts.
+    Launcher,
     /// AI usage: how much of each AI coding plan is left (`pages::usage`).
     /// A core tab, always in the row.
     Ai,
@@ -104,12 +107,13 @@ pub enum PageKind {
 impl PageKind {
     /// The tab row's order: the island's own pages, Oyenza, then the
     /// add-ons' pages and the "+".
-    pub const ALL: [PageKind; 19] = [
+    pub const ALL: [PageKind; 20] = [
         PageKind::Media,
         PageKind::Today,
         PageKind::Shelf,
         PageKind::Tasks,
         PageKind::Focus,
+        PageKind::Launcher,
         PageKind::Ai,
         PageKind::Oyenza,
         PageKind::Health,
@@ -130,6 +134,7 @@ impl PageKind {
         match self {
             PageKind::Media => "media",
             PageKind::Focus => "focus",
+            PageKind::Launcher => "launcher",
             PageKind::Ai => "ai",
             PageKind::Health => "health",
             PageKind::Ielts => "ielts",
@@ -160,6 +165,7 @@ impl PageKind {
         match self {
             PageKind::Media => "Music",
             PageKind::Focus => "Focus",
+            PageKind::Launcher => "Rabbit Hole",
             PageKind::Ai => "AI",
             PageKind::Health => "Health",
             PageKind::Ielts => "IELTS",
@@ -184,6 +190,7 @@ impl PageKind {
         match self {
             PageKind::Media => Icon::Music,
             PageKind::Focus => Icon::Timer,
+            PageKind::Launcher => Icon::App,
             PageKind::Ai => Icon::Ai,
             PageKind::Health => Icon::Steps,
             PageKind::Ielts => Icon::Mic,
@@ -221,7 +228,7 @@ impl PageKind {
 
     /// The island's own pages, which Settings can take off the row. AI and
     /// Oyenza stay; the add-ons' pages come and go with their switches.
-    pub const HIDEABLE: [PageKind; 5] = [PageKind::Media, PageKind::Today, PageKind::Shelf, PageKind::Tasks, PageKind::Focus];
+    pub const HIDEABLE: [PageKind; 6] = [PageKind::Media, PageKind::Today, PageKind::Shelf, PageKind::Tasks, PageKind::Focus, PageKind::Launcher];
 
     pub fn hideable(self) -> bool {
         Self::HIDEABLE.contains(&self)
@@ -278,6 +285,7 @@ pub fn content_height(p: PageKind, st: &AppState) -> f32 {
     match p {
         PageKind::Media => media::height(st),
         PageKind::Focus => focus::height(st),
+        PageKind::Launcher => launcher::height(st),
         PageKind::Ai => usage::height(st),
         PageKind::Health => health::height(st),
         PageKind::Ielts => ielts::height(st),
@@ -419,6 +427,7 @@ pub(crate) fn draw_page(ui: &mut Ui, st: &mut AppState, area: Rect, page: PageKi
     match page {
         PageKind::Media => media::draw(ui, st, area),
         PageKind::Focus => focus::draw(ui, st, area),
+        PageKind::Launcher => launcher::draw(ui, st, area),
         PageKind::Ai => usage::draw(ui, st, area),
         PageKind::Health => health::draw(ui, st, area),
         PageKind::Ielts => ielts::draw(ui, st, area),

@@ -19,6 +19,7 @@ pub mod glass;
 pub mod hdr;
 pub mod health;
 pub mod ielts;
+pub mod launcher;
 pub mod look;
 pub mod lrc;
 pub mod lrclib;

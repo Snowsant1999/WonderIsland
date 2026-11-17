@@ -97,6 +97,27 @@ fn rest_eyes(now: f64, night: bool, look: Option<f32>, eyes: f64) -> (Frame, boo
     (oyen::frame(Mood::Oyen, t, Input::default(), eyes), true)
 }
 
+/// How long Alice's click-reaction lasts (seconds).
+pub const REACT_SECS: f64 = 1.1;
+
+/// Playful happy hop + wiggle when Alice is clicked in the collapsed pill.
+/// Returns `None` once the reaction finishes so the island returns to rest.
+pub fn react(now: f64, react_at: Option<f64>) -> Option<(Frame, f32)> {
+    let t0 = react_at?;
+    let elapsed = now - t0;
+    if !(0.0..REACT_SECS).contains(&elapsed) {
+        return None;
+    }
+    let u = (elapsed / REACT_SECS) as f32;
+    let env = (u * std::f32::consts::PI).sin().clamp(0.0, 1.0);
+    let hop = ((u * 2.0 * std::f32::consts::PI).sin().abs()) * 6.5 * env;
+    let tilt = (u * 4.0 * std::f32::consts::PI).sin() * 9.0 * env;
+    let mut f = oyen::frame(Mood::Happy, elapsed.rem_euclid(Mood::Happy.loop_secs()), Input::default(), SMALL_EYES);
+    f.head = f.head.then(Affine::rotation_about(tilt as f64, oyen::Point::new(0.0, oyen::CHIN)))
+        .then(Affine::translation(0.0, -hop as f64));
+    Some((f, u))
+}
+
 /// Bopping to the music while it plays: eyes shut in a smile, bouncing on the
 /// beat and leaning a little to each side. Resting, eyes open, once it pauses
 /// (the lean straightens out first).
@@ -635,5 +656,14 @@ mod tests {
     fn the_note_drawings_parse() {
         assert!(glyph(false).len() > 8);
         assert!(glyph(true).len() > 12);
+    }
+
+    #[test]
+    fn alice_react_runs_for_react_secs_then_stops() {
+        assert!(react(10.0, None).is_none());
+        let (f, u) = react(10.5, Some(10.0)).expect("active mid-reaction");
+        assert!((0.0..1.0).contains(&u));
+        assert!(f.head.ty <= 0.0);
+        assert!(react(10.0 + REACT_SECS + 0.01, Some(10.0)).is_none());
     }
 }

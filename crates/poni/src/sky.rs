@@ -6,9 +6,26 @@
 //! frame renders (including the once-a-minute clock wake).
 
 use crate::gfx::Canvas;
+use crate::state::AppState;
+use crate::ui::{wid, Ui};
 use poni_core::geom::{Color, Point, Rect};
 use poni_core::svgpath::{self, Seg};
+use std::f32::consts::PI;
 use std::sync::OnceLock;
+
+/// Duration of the interactive sky burst animation (seconds).
+pub const BURST_SECS: f64 = 1.2;
+
+/// Returns normalized burst progress `0.0..=1.0` while an interactive sky burst is active.
+pub fn burst_progress(burst_at: Option<f64>, now: f64) -> Option<f32> {
+    let t0 = burst_at?;
+    let elapsed = now - t0;
+    if elapsed >= 0.0 && elapsed < BURST_SECS {
+        Some((elapsed / BURST_SECS) as f32)
+    } else {
+        None
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Phase {
@@ -113,8 +130,29 @@ fn draw_cloud_bank(c: &mut Canvas, body: Rect, color: Color, puffs: &[(f32, f32,
     }
 }
 
+/// Register a background click target over the sky ornament in expanded mode.
+/// Must be called before page widgets so foreground buttons retain click priority.
+pub fn hit(ui: &mut Ui, st: &mut AppState, body: Rect) {
+    if !st.settings.langit_wonderland || body.w < 120.0 || body.h < 80.0 {
+        return;
+    }
+    let p = phase(st.local.hour as u8);
+    let r = match p {
+        Phase::Night => Rect::new(body.right() - 108.0, body.y + 44.0, 96.0, 72.0),
+        _ => Rect::new(body.right() - 108.0, body.bottom() - 78.0, 96.0, 72.0),
+    };
+    if ui.button(wid("sky.ornament"), r).clicked {
+        st.ui.sky_burst_at = Some(ui.now);
+        ui.request_anim();
+    } else if burst_progress(st.ui.sky_burst_at, ui.now).is_some() {
+        ui.request_anim();
+    } else {
+        st.ui.sky_burst_at = None;
+    }
+}
+
 /// Draw the full layered Wonderland Sky inside `body` (caller clips to island outline).
-pub fn draw(c: &mut Canvas, body: Rect, hour: u8, minute: u8, expanded: bool) {
+pub fn draw(c: &mut Canvas, body: Rect, hour: u8, minute: u8, expanded: bool, burst: Option<f32>) {
     if body.w < 40.0 || body.h < 20.0 {
         return;
     }
@@ -137,12 +175,14 @@ pub fn draw(c: &mut Canvas, body: Rect, hour: u8, minute: u8, expanded: bool) {
 
         if expanded {
             let drift = (t - 0.5) * 26.0;
+            let pulse = burst.map(|u| (u * PI).sin()).unwrap_or(0.0);
             match p {
                 Phase::Morning => {
                     // Sparkles top-left
                     for (x, y, sz) in [(0.08, 0.22, 11.0), (0.14, 0.32, 7.0)] {
-                        let sc = Point::new(body.x + body.w * x, body.y + body.h * y);
-                        c.path(&transform(&g.star, sc, sz), Some(Color::hex(0xFFE799).with_alpha(0.75)), None);
+                        let dy = burst.map(|u| -8.0 * u).unwrap_or(0.0);
+                        let sc = Point::new(body.x + body.w * x, body.y + body.h * y + dy);
+                        c.path(&transform(&g.star, sc, sz * (1.0 + 0.35 * pulse)), Some(Color::hex(0xFFE799).with_alpha(0.75 + 0.25 * pulse)), None);
                     }
                     // Back cloud layer
                     draw_cloud_bank(
@@ -153,7 +193,7 @@ pub fn draw(c: &mut Canvas, body: Rect, hour: u8, minute: u8, expanded: bool) {
                     );
                     // Rising sun bottom-right
                     let sun_c = Point::new(body.right() - 48.0 + drift * 0.5, body.bottom() - 18.0 - t * 8.0);
-                    draw_sun(c, sun_c, 15.0, Color::hex(0xFFD15C), Color::hex(0xFFD15C).with_alpha(0.45), true);
+                    draw_sun(c, sun_c, 15.0 * (1.0 + 0.12 * pulse), Color::hex(0xFFD15C), Color::hex(0xFFD15C).with_alpha(0.45 + 0.25 * pulse), true);
                     // Front cloud layer
                     draw_cloud_bank(
                         c,
@@ -168,6 +208,15 @@ pub fn draw(c: &mut Canvas, body: Rect, hour: u8, minute: u8, expanded: bool) {
                         let bc = Point::new(body.x + body.w * x, body.y + body.h * y);
                         c.path(&transform(&g.bird, bc, sz), None, Some((Color::white(0.80), 1.4)));
                     }
+                    // Interactive flying birds on click
+                    if let Some(u) = burst {
+                        let ease = 1.0 - (1.0 - u).powi(2);
+                        let alpha = (u * PI).sin().clamp(0.0, 1.0) * 0.90;
+                        for (dx0, dy0, sz) in [(0.0, 0.0, 13.0), (22.0, 10.0, 10.0)] {
+                            let bc = Point::new(body.right() - 40.0 - ease * 140.0 + dx0, body.bottom() - 46.0 - ease * 42.0 + dy0);
+                            c.path(&transform(&g.bird, bc, sz), None, Some((Color::white(alpha), 1.5)));
+                        }
+                    }
                     // Back blue-tinted clouds
                     draw_cloud_bank(
                         c,
@@ -177,7 +226,7 @@ pub fn draw(c: &mut Canvas, body: Rect, hour: u8, minute: u8, expanded: bool) {
                     );
                     // Bright sun bottom-right
                     let sun_c = Point::new(body.right() - 52.0 + drift * 0.7, body.bottom() - 22.0);
-                    draw_sun(c, sun_c, 16.0, Color::hex(0xFFD052), Color::hex(0xFFD052).with_alpha(0.42), true);
+                    draw_sun(c, sun_c, 16.0 * (1.0 + 0.12 * pulse), Color::hex(0xFFD052), Color::hex(0xFFD052).with_alpha(0.42 + 0.28 * pulse), true);
                     // Front white clouds
                     draw_cloud_bank(
                         c,
@@ -190,11 +239,11 @@ pub fn draw(c: &mut Canvas, body: Rect, hour: u8, minute: u8, expanded: bool) {
                     // Warm sparkles
                     for (x, y, sz) in [(0.09, 0.22, 10.0), (0.88, 0.25, 8.0)] {
                         let sc = Point::new(body.x + body.w * x, body.y + body.h * y);
-                        c.path(&transform(&g.star, sc, sz), Some(Color::white(0.65)), None);
+                        c.path(&transform(&g.star, sc, sz * (1.0 + 0.35 * pulse)), Some(Color::white(0.65 + 0.30 * pulse)), None);
                     }
                     // Setting sun low behind clouds
                     let sun_c = Point::new(body.right() - 56.0 + drift * 0.5, body.bottom() - 12.0 + t * 4.0);
-                    draw_sun(c, sun_c, 18.0, Color::hex(0xFFC247), Color::hex(0xFF9F40).with_alpha(0.45), false);
+                    draw_sun(c, sun_c, 18.0 * (1.0 + 0.10 * pulse), Color::hex(0xFFC247), Color::hex(0xFF9F40).with_alpha(0.45 + 0.28 * pulse), false);
                     // Back amber clouds
                     draw_cloud_bank(
                         c,
@@ -211,20 +260,30 @@ pub fn draw(c: &mut Canvas, body: Rect, hour: u8, minute: u8, expanded: bool) {
                     );
                 }
                 Phase::Night => {
-                    // Shooting star top-left
+                    // Ambient shooting star top-left
                     let s0 = Point::new(body.x + body.w * 0.16, body.y + body.h * 0.26);
                     let s1 = Point::new(body.x + body.w * 0.08, body.y + body.h * 0.38);
                     c.line(s0, s1, Color::hex(0xDCE6FF).with_alpha(0.45), 1.3);
                     c.fill_circle(s0, 1.8, Color::hex(0xFFF6D6).with_alpha(0.85));
 
+                    // Interactive shooting star streak on click
+                    if let Some(u) = burst {
+                        let ease = 1.0 - (1.0 - u).powi(2);
+                        let alpha = (u * PI).sin().clamp(0.0, 1.0);
+                        let head = Point::new(body.right() - 72.0 - ease * 180.0, body.y + 52.0 + ease * 58.0);
+                        let tail = Point::new(head.x + 34.0, head.y - 11.0);
+                        c.line(head, tail, Color::hex(0xFFF6D6).with_alpha(0.80 * alpha), 1.8);
+                        c.fill_circle(head, 2.5, Color::hex(0xFFF9E6).with_alpha(alpha));
+                    }
+
                     // Twinkling stars
                     for (x, y, sz) in [(0.10, 0.20, 7.0), (0.28, 0.16, 6.0), (0.68, 0.22, 8.0), (0.90, 0.18, 6.0), (0.74, 0.44, 5.5)] {
                         let sc = Point::new(body.x + body.w * x, body.y + body.h * y);
-                        c.path(&transform(&g.star, sc, sz), Some(Color::hex(0xFFF2B8).with_alpha(0.70)), None);
+                        c.path(&transform(&g.star, sc, sz * (1.0 + 0.35 * pulse)), Some(Color::hex(0xFFF2B8).with_alpha(0.70 + 0.30 * pulse)), None);
                     }
                     // Crescent moon + glow
                     let moon_c = Point::new(body.right() - 56.0 + drift * 0.4, body.y + body.h * 0.34);
-                    c.fill_radial_glow(moon_c, 26.0, Color::hex(0xF5D27A).with_alpha(0.22), Color::hex(0xF5D27A).with_alpha(0.0));
+                    c.fill_radial_glow(moon_c, 26.0 * (1.0 + 0.25 * pulse), Color::hex(0xF5D27A).with_alpha(0.22 + 0.20 * pulse), Color::hex(0xF5D27A).with_alpha(0.0));
                     c.path(&transform(&g.moon, moon_c, 24.0), Some(Color::hex(0xF8E4A0).with_alpha(0.88)), None);
 
                     // Deep indigo-violet layered bottom clouds

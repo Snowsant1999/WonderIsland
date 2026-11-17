@@ -339,6 +339,12 @@ pub struct PageUiState {
     pub hud_level: f32,
     /// Collapsed media pill shows the track title until this mono time.
     pub peek_until: f64,
+    /// Wonderland Sky interactive burst start time (mono seconds), if active.
+    pub sky_burst_at: Option<f64>,
+    /// Alice mascot click-reaction start time (mono seconds), if active.
+    pub alice_react_at: Option<f64>,
+    /// Rabbit Hole Launcher input field buffer.
+    pub launcher_input: String,
     /// Header tab under the pointer and since when (for hover labels).
     pub tab_hover: Option<(usize, f64)>,
     /// Oyen in the Oyenza tab: his last move of his own and when it started
