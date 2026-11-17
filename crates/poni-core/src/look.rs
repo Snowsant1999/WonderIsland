@@ -103,20 +103,27 @@ pub const WONDERLAND: Look = Look {
 };
 
 // ---------------------------------------------------------------- A2 Wonderland Sky
-// Time-of-day ground colour for the Alice Blue island.
-// Pagi (05-10): warm light blue  | Siang (10-17): crisp Alice Blue
-// Senja (17-20): amber dusk tint | Malam (20-05): deep twilight
-pub const WONDERLAND_MORNING: Look = Look { ground: Color::hex(0xE8F4FF), ..WONDERLAND };
+// Time-of-day palette for the Wonderland island.
+// Pagi (05-10): warm sky blue     | Siang (10-17): crisp Alice Blue
+// Senja (17-20): golden peach     | Malam (20-05): deep starry night
+pub const WONDERLAND_MORNING: Look = Look { ground: Color::hex(0xE8F3FF), ..WONDERLAND };
 pub const WONDERLAND_NOON: Look    = Look { ground: ALICE_BLUE, ..WONDERLAND };
 pub const WONDERLAND_DUSK: Look    = Look {
-    ground: Color::hex(0xF5ECD7),
+    ground: Color::hex(0xFCE7CE),
+    ink:    Color::hex(0x2E1E14),
     accent: Some(Color::hex(0xC47A2A)),
     ..WONDERLAND
 };
 pub const WONDERLAND_NIGHT: Look   = Look {
-    ground: Color::hex(0xD6DFF0),
-    ink:    Color::hex(0x111D38),
-    ..WONDERLAND
+    ground: Color::hex(0x1E2656),
+    ink:    Color::hex(0xF0F4FF),
+    accent: Some(Color::hex(0xF5D27A)),
+    border: Color::rgba(0.94, 0.96, 1.0, 0.14),
+    light:  false,
+    font:   Some("Crimson Pro"),
+    material: Material::Solid,
+    shape:  Shape::Notch,
+    swaps:  &[],
 };
 
 /// The Wonderland look for the current hour (A2).

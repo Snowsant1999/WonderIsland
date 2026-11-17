@@ -1800,6 +1800,49 @@ impl<'a> Canvas<'a> {
         }
     }
 
+    /// Fill `r` with a vertical linear gradient from `top` to `bottom`.
+    pub fn fill_linear_gradient(&mut self, r: Rect, top: Color, bottom: Color) {
+        let top = self.g.look.paint(top);
+        let bottom = self.g.look.paint(bottom);
+        let stops = [
+            D2D1_GRADIENT_STOP { position: 0.0, color: d2d_color(top) },
+            D2D1_GRADIENT_STOP { position: 1.0, color: d2d_color(bottom) },
+        ];
+        unsafe {
+            let Ok(coll) = self.g.rt.CreateGradientStopCollection(&stops, D2D1_GAMMA_2_2, D2D1_EXTEND_MODE_CLAMP) else { return };
+            let props = D2D1_LINEAR_GRADIENT_BRUSH_PROPERTIES { startPoint: pt(0.0, r.y), endPoint: pt(0.0, r.bottom()) };
+            let Ok(brush) = self.g.rt.CreateLinearGradientBrush(&props, None, &coll) else { return };
+            brush.SetOpacity(self.alpha);
+            self.g.rt.FillRectangle(&rectf(r), &brush);
+        }
+    }
+
+    /// Fill a soft radial glow circle centred at `center` with `radius`.
+    pub fn fill_radial_glow(&mut self, center: Point, radius: f32, inner: Color, outer: Color) {
+        if radius <= 0.0 {
+            return;
+        }
+        let inner = self.g.look.paint(inner);
+        let outer = self.g.look.paint(outer);
+        let stops = [
+            D2D1_GRADIENT_STOP { position: 0.0, color: d2d_color(inner) },
+            D2D1_GRADIENT_STOP { position: 1.0, color: d2d_color(outer) },
+        ];
+        unsafe {
+            let Ok(coll) = self.g.rt.CreateGradientStopCollection(&stops, D2D1_GAMMA_2_2, D2D1_EXTEND_MODE_CLAMP) else { return };
+            let props = D2D1_RADIAL_GRADIENT_BRUSH_PROPERTIES {
+                center: pt(center.x, center.y),
+                gradientOriginOffset: pt(0.0, 0.0),
+                radiusX: radius,
+                radiusY: radius,
+            };
+            let Ok(brush) = self.g.rt.CreateRadialGradientBrush(&props, None, &coll) else { return };
+            brush.SetOpacity(self.alpha);
+            let ell = D2D1_ELLIPSE { point: pt(center.x, center.y), radiusX: radius, radiusY: radius };
+            self.g.rt.FillEllipse(&ell, &brush);
+        }
+    }
+
     /// A soft shadow round the rounded rectangle `r` (corner `radius`): `c`
     /// at the opacity `ramp` gives by distance from the edge (DIPs, negative
     /// inside, in order), from its first stop inside the edge to its last

@@ -3702,6 +3702,19 @@ impl App {
                     }
                 }
 
+                // A2 Wonderland Sky: subtle time-of-day SVG sky ornaments clipped to the island outline
+                if self.st.settings.langit_wonderland && !hidden_idle && matches!(mode, Mode::Idle | Mode::Expanded(_)) {
+                    canvas.clip(body);
+                    if floating {
+                        canvas.push_outline_mask(&pill::shape::segments(body, geom.r));
+                    } else {
+                        canvas.push_shape_mask(body, geom.r, SHOULDER);
+                    }
+                    crate::sky::draw(&mut canvas, body, self.st.local.hour as u8, self.st.local.minute as u8, self.expanded);
+                    canvas.pop_shape_mask();
+                    canvas.unclip();
+                }
+
                 // Content scales about the top centre, where the island hangs
                 // (floating, about the middle of the pill end of the morph).
                 let pivot = if floating { pill::motion::pivot(body, self.island.target()) } else { Point::new(body.center().x, body.y) };
