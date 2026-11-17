@@ -83,9 +83,9 @@ const BOLT_VISIBLE: f32 = BOLT * 14.0 / 24.0;
 const BADGE_GAP: f32 = 6.0;
 /// Oyen theme: the head's width (DIPs) in the idle "Oyen" look, beside the
 /// idle clock and in the media pill, and the clock pill's extra width for him.
-const OYEN_IDLE_W: f32 = 38.0;
-const OYEN_CLOCK_W: f32 = 28.0;
-const OYEN_MEDIA_W: f32 = 36.0;
+const OYEN_IDLE_W: f32 = 33.0;
+const OYEN_CLOCK_W: f32 = 25.0;
+const OYEN_MEDIA_W: f32 = 28.0;
 const OYEN_CLOCK_LEAD: f32 = 12.0 + OYEN_CLOCK_W;
 /// The countdown before a prayer: the moon, then "Maghrib 10 min" (152,
 /// its words' room), then its OK.
@@ -431,7 +431,8 @@ fn draw_idle(ui: &mut Ui, st: &mut AppState, body: Rect) {
         IdleStyle::Clock | IdleStyle::Status => {
             // Oyen theme: he peeks on the left and the clock centres in the rest.
             let body = if oyen::on(st.settings.theme) {
-                draw_oyen_rest(ui, st, body, body.x + 11.0 + OYEN_CLOCK_W / 2.0, OYEN_CLOCK_W, body.bottom() - 3.0);
+                let w = OYEN_CLOCK_W * (body.h / 30.0).min(1.0);
+                draw_oyen_rest(ui, st, body, body.x + 11.0 + OYEN_CLOCK_W / 2.0, w, body.bottom() - 3.0);
                 Rect::new(body.x + OYEN_CLOCK_LEAD, body.y, body.w - OYEN_CLOCK_LEAD, body.h)
             } else {
                 body
@@ -463,7 +464,8 @@ fn draw_idle(ui: &mut Ui, st: &mut AppState, body: Rect) {
             ui.c.text(&time, Rect::new(x0 + bw + BADGE_GAP, body.y, tw + 2.0, body.h), &ts);
         }
         IdleStyle::Eyes if oyen::on(st.settings.theme) => {
-            draw_oyen_rest(ui, st, body, body.center().x, OYEN_IDLE_W, body.bottom() - 3.0);
+            let w = OYEN_IDLE_W * (body.h / 36.0).min(1.0);
+            draw_oyen_rest(ui, st, body, body.center().x, w, body.bottom() - 3.0);
         }
         IdleStyle::Eyes => {
             // Eyes glance toward the cursor while hovering.
@@ -583,7 +585,8 @@ pub fn draw_music(ui: &mut Ui, st: &mut AppState, body: Rect, words: bool) {
         let sky = Rect::new(body.x, body.y + 1.0, body.w, body.h - 1.0);
         oyen::notes(ui.c, &st.ui.notes, st.now, cx, bar_y, sky, 1.0 - alpha);
         let f = oyen::music(st.now, playing, st.media_paused_at);
-        oyen::peek(ui.c, &f, cx, bar_y, OYEN_MEDIA_W, body.y + 1.0);
+        let w = OYEN_MEDIA_W * (body.h / 32.0).min(1.0);
+        oyen::peek(ui.c, &f, cx, bar_y, w, body.y + 1.0);
     } else {
         equalizer(ui, eq, st.media_accent(), playing, st.now);
     }

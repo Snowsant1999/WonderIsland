@@ -2201,6 +2201,16 @@ impl App {
                 self.st.system.clear();
             }
         }
+        if before.drink_me != self.st.settings.drink_me {
+            let scale_target = if self.st.settings.drink_me { 0.84 } else { 1.0 };
+            self.drink_me_scale.set_target(scale_target);
+            let target = self.geom_for(&self.mode);
+            self.island.set_target(target, self.st.now, true);
+            self.request_frame();
+        }
+        if !self.st.settings.rabbit_hole_fall {
+            self.rabbit_hole_done = false;
+        }
     }
 
     fn on_menu(&mut self, cmd: tray::MenuCmd) {
@@ -3369,9 +3379,9 @@ impl App {
     /// pointer: instant feedback while the hover dwell runs.
     fn geom_for(&self, m: &Mode) -> Geom {
         let mut g = activities::geom(m, &self.st);
-        if self.st.settings.drink_me && !matches!(m, Mode::Expanded(_)) {
-            // Use spring value for smooth bounce animation (target 0.84, overshoots slightly)
-            let s = self.drink_me_scale.value.clamp(0.70, 1.05);
+        let s = self.drink_me_scale.value.clamp(0.70, 1.05);
+        if !matches!(m, Mode::Expanded(_)) && (self.st.settings.drink_me || (s - 1.0).abs() > 0.001) {
+            // Use spring value for smooth bounce animation (0.84 <-> 1.0)
             let sh = s * 0.97; // height shrinks a touch more (feels more like a squeeze)
             g.w = (g.w * s).round();
             g.h = (g.h * sh).round();
@@ -3464,9 +3474,6 @@ impl App {
             self.tick();
             self.run_commands(deferred);
             self.paint_settings_if_dirty(deferred);
-        if !self.st.settings.rabbit_hole_fall {
-            self.rabbit_hole_done = false;
-        }
             self.clock.set_active(false);
             self.motion = None;
             self.schedule_wake();
@@ -3659,7 +3666,13 @@ impl App {
             self.gfx.prepare_glass(&p, canvas_px);
             Some(p)
         } else {
-            self.gfx.set_look(poni_core::look::of(self.st.settings.theme));
+            // A2 Wonderland Sky: shift ground colour by time of day when enabled
+            let look = if self.st.settings.langit_wonderland {
+                poni_core::look::sky_look(self.st.local.hour as u8)
+            } else {
+                poni_core::look::of(self.st.settings.theme)
+            };
+            self.gfx.set_look(look);
             None
         };
         let (repaint, anim, focus, ui_live) = match self.gfx.begin(dirty) {
@@ -4834,6 +4847,7 @@ impl App {
                 }
                 if changed {
                     self.st.cmd(Command::SaveSettings);
+                    self.layout_surface();
                 }
             }
             NotifyEvent::Seen(seen) => {
@@ -4842,6 +4856,7 @@ impl App {
                     self.st.cmd(Command::SaveSettings);
                 }
                 // Record in session history regardless of toggle (newest first, max 5).
+                let old_len = self.st.settings.notifications.history.len();
                 {
                     use poni_core::notifications::{HistoryEntry, MAX_HISTORY};
                     let title = seen.lines.first().cloned().unwrap_or_default();
@@ -4850,6 +4865,9 @@ impl App {
                     let h = &mut self.st.settings.notifications.history;
                     h.insert(0, entry);
                     h.truncate(MAX_HISTORY);
+                }
+                if changed || self.st.settings.notifications.history.len() != old_len {
+                    self.layout_surface();
                 }
                 // Nobody would see it: Windows keeps it in its own list.
                 if !shows || self.locked || self.display_off {

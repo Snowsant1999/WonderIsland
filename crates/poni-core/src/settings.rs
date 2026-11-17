@@ -126,6 +126,8 @@ pub struct Settings {
     pub rabbit_hole_fall: bool,
     /// Drink Me compact island mode (PRD A4)
     pub drink_me: bool,
+    /// A2: Wonderland Sky - ground colour shifts by time of day (morning/noon/dusk/night)
+    pub langit_wonderland: bool,
 }
 
 /// What the AI tab shows and whether it gives heads-up notices.
@@ -247,6 +249,7 @@ impl Default for Settings {
             ielts_spice: Spice::default(),
             rabbit_hole_fall: true,
             drink_me: false,
+            langit_wonderland: true,
         }
     }
 }

@@ -102,6 +102,33 @@ pub const WONDERLAND: Look = Look {
     ],
 };
 
+// ---------------------------------------------------------------- A2 Wonderland Sky
+// Time-of-day ground colour for the Alice Blue island.
+// Pagi (05-10): warm light blue  | Siang (10-17): crisp Alice Blue
+// Senja (17-20): amber dusk tint | Malam (20-05): deep twilight
+pub const WONDERLAND_MORNING: Look = Look { ground: Color::hex(0xE8F4FF), ..WONDERLAND };
+pub const WONDERLAND_NOON: Look    = Look { ground: ALICE_BLUE, ..WONDERLAND };
+pub const WONDERLAND_DUSK: Look    = Look {
+    ground: Color::hex(0xF5ECD7),
+    accent: Some(Color::hex(0xC47A2A)),
+    ..WONDERLAND
+};
+pub const WONDERLAND_NIGHT: Look   = Look {
+    ground: Color::hex(0xD6DFF0),
+    ink:    Color::hex(0x111D38),
+    ..WONDERLAND
+};
+
+/// The Wonderland look for the current hour (A2).
+/// Returns one of four static looks; only switches at hour boundaries.
+pub fn sky_look(hour: u8) -> &'static Look {
+    match hour {
+         5..=9  => &WONDERLAND_MORNING,
+        10..=16 => &WONDERLAND_NOON,
+        17..=19 => &WONDERLAND_DUSK,
+        _       => &WONDERLAND_NIGHT,
+    }
+}
 /// Classic is the identity look used by Canvas::unthemed() and raw drawing.
 /// With swaps empty and standard black/white ground/ink, map() returns any colour unchanged.
 pub const CLASSIC: Look = Look {
