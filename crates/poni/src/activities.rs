@@ -6,6 +6,7 @@
 //! Collapsed pills are sized to their content: Windows has no camera
 //! cut-out to work around, so empty black would only cover the browser tabs.
 
+use crate::commands::{Command, MediaCmd};
 use crate::gfx::{TextStyle, Weight};
 use crate::icons::Icon;
 use crate::island::Geom;
@@ -83,9 +84,9 @@ const BOLT_VISIBLE: f32 = BOLT * 14.0 / 24.0;
 const BADGE_GAP: f32 = 6.0;
 /// Oyen theme: the head's width (DIPs) in the idle "Oyen" look, beside the
 /// idle clock and in the media pill, and the clock pill's extra width for him.
-const OYEN_IDLE_W: f32 = 38.0;
-const OYEN_CLOCK_W: f32 = 28.0;
-const OYEN_MEDIA_W: f32 = 36.0;
+const OYEN_IDLE_W: f32 = 33.0;
+const OYEN_CLOCK_W: f32 = 25.0;
+const OYEN_MEDIA_W: f32 = 28.0;
 const OYEN_CLOCK_LEAD: f32 = 12.0 + OYEN_CLOCK_W;
 /// The countdown before a prayer: the moon, then "Maghrib 10 min" (152,
 /// its words' room), then its OK.
@@ -396,13 +397,35 @@ pub(crate) fn night(st: &AppState) -> bool {
 }
 
 /// Oyen at rest in the idle pill; he follows the cursor while it hovers.
-fn draw_oyen_rest(ui: &mut Ui, st: &AppState, body: Rect, cx: f32, w: f32, bar_y: f32) {
+/// Clicking Alice triggers a brief happy hop + floating heart reaction.
+fn draw_oyen_rest(ui: &mut Ui, st: &mut AppState, body: Rect, cx: f32, w: f32, bar_y: f32) {
+    let hit_r = Rect::new(cx - w * 0.55, body.y + 1.0, w * 1.1, (bar_y - body.y - 1.0).max(16.0));
+    if ui.button(wid("alice.pet"), hit_r).clicked {
+        st.ui.alice_react_at = Some(ui.now);
+        ui.request_anim();
+    }
+    if let Some((frame, u)) = oyen::react(st.now, st.ui.alice_react_at) {
+        ui.request_anim();
+        oyen::peek(ui.c, &frame, cx, bar_y, w, body.y + 1.0);
+        draw_react_hearts(ui, cx, bar_y, w, u);
+        return;
+    }
+    st.ui.alice_react_at = None;
     let look = ui.input.mouse.map(|p| (p.x - body.center().x) / (body.w / 2.0));
     let (frame, moving) = oyen::rest(st.now, night(st), look);
     if moving {
         ui.request_anim();
     }
     oyen::peek(ui.c, &frame, cx, bar_y, w, body.y + 1.0);
+}
+
+fn draw_react_hearts(ui: &mut Ui, cx: f32, bar_y: f32, w: f32, u: f32) {
+    let alpha = (u * std::f32::consts::PI).sin().clamp(0.0, 1.0);
+    let heart_c = Color::hex(0xE85D75).with_alpha(alpha);
+    for (dx, speed, sz) in [(-w * 0.38, 13.0, 7.0), (w * 0.36, 16.0, 5.5)] {
+        let p = Point::new(cx + dx, bar_y - 12.0 - u * speed);
+        ui.c.icon(Icon::Heart, Rect::from_center(p, sz, sz), heart_c);
+    }
 }
 
 pub fn draw(ui: &mut Ui, st: &mut AppState, m: &Mode, body: Rect) {
@@ -431,7 +454,8 @@ fn draw_idle(ui: &mut Ui, st: &mut AppState, body: Rect) {
         IdleStyle::Clock | IdleStyle::Status => {
             // Oyen theme: he peeks on the left and the clock centres in the rest.
             let body = if oyen::on(st.settings.theme) {
-                draw_oyen_rest(ui, st, body, body.x + 11.0 + OYEN_CLOCK_W / 2.0, OYEN_CLOCK_W, body.bottom() - 3.0);
+                let w = OYEN_CLOCK_W * (body.h / 30.0).min(1.0);
+                draw_oyen_rest(ui, st, body, body.x + 11.0 + OYEN_CLOCK_W / 2.0, w, body.bottom() - 3.0);
                 Rect::new(body.x + OYEN_CLOCK_LEAD, body.y, body.w - OYEN_CLOCK_LEAD, body.h)
             } else {
                 body
@@ -463,7 +487,8 @@ fn draw_idle(ui: &mut Ui, st: &mut AppState, body: Rect) {
             ui.c.text(&time, Rect::new(x0 + bw + BADGE_GAP, body.y, tw + 2.0, body.h), &ts);
         }
         IdleStyle::Eyes if oyen::on(st.settings.theme) => {
-            draw_oyen_rest(ui, st, body, body.center().x, OYEN_IDLE_W, body.bottom() - 3.0);
+            let w = OYEN_IDLE_W * (body.h / 36.0).min(1.0);
+            draw_oyen_rest(ui, st, body, body.center().x, w, body.bottom() - 3.0);
         }
         IdleStyle::Eyes => {
             // Eyes glance toward the cursor while hovering.
@@ -558,6 +583,51 @@ fn draw_peek(ui: &mut Ui, st: &AppState, x0: f32, x1: f32, body: Rect, alpha: f3
     });
 }
 
+/// Thin 2 DIP progress bar along the bottom edge of a collapsed pill (P2A).
+fn draw_bottom_progress(ui: &mut Ui, body: Rect, frac: f32, col: Color) {
+    let inset = 14.0;
+    let w = (body.w - 2.0 * inset).max(0.0);
+    if w <= 4.0 {
+        return;
+    }
+    let bar = Rect::new(body.x + inset, body.bottom() - 2.5, w, 2.0);
+    ui.c.fill_rrect(bar, 1.0, Color::white(0.14));
+    let fw = (w * frac.clamp(0.0, 1.0)).max(2.0);
+    if frac > 0.001 {
+        ui.c.fill_rrect(Rect::new(bar.x, bar.y, fw, bar.h), 1.0, col.with_alpha(0.88));
+    }
+}
+
+/// Compact media transport buttons shown when hovering the collapsed media pill (P2B).
+fn draw_mini_media_controls(ui: &mut Ui, st: &mut AppState, left: f32, right: f32, cy: f32, playing: bool) -> bool {
+    let room = right - left;
+    if room < 56.0 {
+        return false;
+    }
+    let btn_sz = 18.0;
+    let gap = 4.0;
+    let total_w = btn_sz * 3.0 + gap * 2.0;
+    let x0 = (left + right - total_w) / 2.0;
+    let bg = Rect::new(x0 - 4.0, cy - btn_sz / 2.0 - 1.0, total_w + 8.0, btn_sz + 2.0);
+    ui.c.fill_rrect(bg, bg.h / 2.0, palette::SURFACE);
+
+    let (can_prev, can_pp, can_next) = st.media.as_ref().map_or((false, false, false), |m| (m.can_prev, m.can_play_pause, m.can_next));
+    let defs = [
+        ("pill.media.prev", Icon::Prev, MediaCmd::Prev, can_prev),
+        ("pill.media.pp", if playing { Icon::Pause } else { Icon::Play }, MediaCmd::PlayPause, can_pp),
+        ("pill.media.next", Icon::Next, MediaCmd::Next, can_next),
+    ];
+    for (i, (id, icon, cmd, enabled)) in defs.into_iter().enumerate() {
+        let r = Rect::new(x0 + i as f32 * (btn_sz + gap), cy - btn_sz / 2.0, btn_sz, btn_sz);
+        let col = if enabled { palette::TEXT } else { palette::TEXT_FAINT };
+        let resp = ui.icon_button(wid(id), r, icon, col, 11.0);
+        if enabled && resp.clicked {
+            st.cmd(Command::Media(cmd));
+        }
+    }
+    true
+}
+
 /// Music, collapsed: the album art on the left, the equalizer (Oyen, in his
 /// theme) on the right, and between them the line being sung while the song
 /// has synced lyrics, as in the Pill theme (`pill::media::middle`: the line,
@@ -582,16 +652,35 @@ pub fn draw_music(ui: &mut Ui, st: &mut AppState, body: Rect, words: bool) {
         st.ui.notes.step(st.now, playing);
         let sky = Rect::new(body.x, body.y + 1.0, body.w, body.h - 1.0);
         oyen::notes(ui.c, &st.ui.notes, st.now, cx, bar_y, sky, 1.0 - alpha);
-        let f = oyen::music(st.now, playing, st.media_paused_at);
-        oyen::peek(ui.c, &f, cx, bar_y, OYEN_MEDIA_W, body.y + 1.0);
+        let w = OYEN_MEDIA_W * (body.h / 32.0).min(1.0);
+        let hit_r = Rect::new(cx - w * 0.55, body.y + 1.0, w * 1.1, (bar_y - body.y - 1.0).max(16.0));
+        if ui.button(wid("alice.pet"), hit_r).clicked {
+            st.ui.alice_react_at = Some(ui.now);
+            ui.request_anim();
+        }
+        if let Some((f, u)) = oyen::react(st.now, st.ui.alice_react_at) {
+            ui.request_anim();
+            oyen::peek(ui.c, &f, cx, bar_y, w, body.y + 1.0);
+            draw_react_hearts(ui, cx, bar_y, w, u);
+        } else {
+            st.ui.alice_react_at = None;
+            let f = oyen::music(st.now, playing, st.media_paused_at);
+            oyen::peek(ui.c, &f, cx, bar_y, w, body.y + 1.0);
+        }
     } else {
         equalizer(ui, eq, st.media_accent(), playing, st.now);
     }
-    if sings {
-        use crate::pill::media::{middle, PAUSED_TEXT, TEXT_CLEAR};
-        middle(ui, st, body, art.right() + TEXT_CLEAR, eq.x - TEXT_CLEAR, if playing { 1.0 } else { PAUSED_TEXT });
-    } else if alpha > 0.01 {
-        draw_peek(ui, st, art.right() + 10.0, eq.x - 10.0, body, alpha);
+    let hover_controls = words && ui.input.mouse.is_some_and(|p| body.contains(p)) && draw_mini_media_controls(ui, st, art.right() + 6.0, eq.x - 6.0, cy, playing);
+    if !hover_controls {
+        if sings {
+            use crate::pill::media::{middle, PAUSED_TEXT, TEXT_CLEAR};
+            middle(ui, st, body, art.right() + TEXT_CLEAR, eq.x - TEXT_CLEAR, if playing { 1.0 } else { PAUSED_TEXT });
+        } else if alpha > 0.01 {
+            draw_peek(ui, st, art.right() + 10.0, eq.x - 10.0, body, alpha);
+        }
+    }
+    if let Some(m) = st.media.as_ref().filter(|m| m.timeline.has_duration()) {
+        draw_bottom_progress(ui, body, m.timeline.progress_at(st.now), st.media_accent());
     }
 }
 
@@ -616,6 +705,7 @@ fn draw_activity(ui: &mut Ui, st: &mut AppState, a: Activity, body: Rect) {
             }
             let text = fmt_countdown(p.remaining(st.now));
             ui.c.text(&text, Rect::new(body.x + 40.0, body.y, 64.0, body.h), &countdown_style(col, paused));
+            draw_bottom_progress(ui, body, p.progress(st.now), col);
         }
         Activity::Prayer => {
             // No Oyen here, in any theme: the moon, the minutes and OK only.

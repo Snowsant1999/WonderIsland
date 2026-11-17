@@ -146,6 +146,15 @@ impl Listener {
             Ok(token) => {
                 crate::pinfo!("notifications: listening via NotificationChanged event");
                 self.token = Some(token);
+                let sink = self.sink.clone();
+                let _ = std::thread::Builder::new().name("poni-notify-apps".into()).spawn(move || {
+                    if let Ok(listener) = UserNotificationListener::Current() {
+                        let apps = collect_apps(&listener);
+                        if !apps.is_empty() {
+                            sink.send(AppEvent::Notify(NotifyEvent::Apps(apps)));
+                        }
+                    }
+                });
             }
             Err(_e) => {
                 // Windows requires package identity for push event, but allows pull polling!
@@ -190,20 +199,7 @@ impl Listener {
             }
 
             // Also send apps list from this thread's fresh listener
-            let mut apps: Vec<(String, String)> = Vec::new();
-            if let Ok(list) = listener.GetNotificationsAsync(NotificationKinds::Toast).and_then(|op| op.get()) {
-                if let Ok(size) = list.Size() {
-                    for i in 0..size {
-                        if let Ok(n) = list.GetAt(i) {
-                            if let Ok((id, name)) = app_of(&n) {
-                                if !apps.iter().any(|a| a.0 == id) {
-                                    apps.push((id, name));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            let apps = collect_apps(&listener);
             if !apps.is_empty() {
                 sink.send(AppEvent::Notify(NotifyEvent::Apps(apps)));
             }
@@ -269,6 +265,25 @@ fn access_of(s: UserNotificationListenerAccessStatus, asked: bool) -> NotifyAcce
         UserNotificationListenerAccessStatus::Unspecified => NotifyAccess::Ask,
         _ => NotifyAccess::Failed,
     }
+}
+
+/// Collect unique (app_id, app_name) pairs from currently visible toast notifications.
+fn collect_apps(listener: &UserNotificationListener) -> Vec<(String, String)> {
+    let mut apps: Vec<(String, String)> = Vec::new();
+    if let Ok(list) = listener.GetNotificationsAsync(NotificationKinds::Toast).and_then(|op| op.get()) {
+        if let Ok(size) = list.Size() {
+            for i in 0..size {
+                if let Ok(n) = list.GetAt(i) {
+                    if let Ok((id, name)) = app_of(&n) {
+                        if !apps.iter().any(|a| a.0 == id) {
+                            apps.push((id, name));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    apps
 }
 
 /// A notification's app (id, display name).

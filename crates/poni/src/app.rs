@@ -1071,6 +1071,21 @@ impl App {
                         // The prayer countdown's OK, the same way.
                         self.input.pressed_id = None;
                         self.prayer_countdown_ok();
+                    } else if self.input.pressed_id == Some(wid("alice.pet")) {
+                        // Clicking Alice in the collapsed pill triggers her happy hop without expanding.
+                        self.input.pressed_id = None;
+                        self.cancel_hover();
+                        self.st.ui.alice_react_at = Some(self.st.now);
+                    } else if let Some(cmd) = match self.input.pressed_id {
+                        Some(id) if id == wid("pill.media.prev") => Some(MediaCmd::Prev),
+                        Some(id) if id == wid("pill.media.pp") => Some(MediaCmd::PlayPause),
+                        Some(id) if id == wid("pill.media.next") => Some(MediaCmd::Next),
+                        _ => None,
+                    } {
+                        // Mini media transport buttons in the collapsed pill act in place.
+                        self.input.pressed_id = None;
+                        self.cancel_hover();
+                        self.st.cmd(Command::Media(cmd));
                     } else {
                         // Clicking a notice jumps to its page (a new version's
                         // may be waiting under a volume change or a game's readout).
@@ -2200,6 +2215,16 @@ impl App {
             if !history && !self.sysmon_on && !self.st.game.active {
                 self.st.system.clear();
             }
+        }
+        if before.drink_me != self.st.settings.drink_me {
+            let scale_target = if self.st.settings.drink_me { 0.84 } else { 1.0 };
+            self.drink_me_scale.set_target(scale_target);
+            let target = self.geom_for(&self.mode);
+            self.island.set_target(target, self.st.now, true);
+            self.request_frame();
+        }
+        if !self.st.settings.rabbit_hole_fall {
+            self.rabbit_hole_done = false;
         }
     }
 
@@ -3369,9 +3394,9 @@ impl App {
     /// pointer: instant feedback while the hover dwell runs.
     fn geom_for(&self, m: &Mode) -> Geom {
         let mut g = activities::geom(m, &self.st);
-        if self.st.settings.drink_me && !matches!(m, Mode::Expanded(_)) {
-            // Use spring value for smooth bounce animation (target 0.84, overshoots slightly)
-            let s = self.drink_me_scale.value.clamp(0.70, 1.05);
+        let s = self.drink_me_scale.value.clamp(0.70, 1.05);
+        if !matches!(m, Mode::Expanded(_)) && (self.st.settings.drink_me || (s - 1.0).abs() > 0.001) {
+            // Use spring value for smooth bounce animation (0.84 <-> 1.0)
             let sh = s * 0.97; // height shrinks a touch more (feels more like a squeeze)
             g.w = (g.w * s).round();
             g.h = (g.h * sh).round();
@@ -3464,9 +3489,6 @@ impl App {
             self.tick();
             self.run_commands(deferred);
             self.paint_settings_if_dirty(deferred);
-        if !self.st.settings.rabbit_hole_fall {
-            self.rabbit_hole_done = false;
-        }
             self.clock.set_active(false);
             self.motion = None;
             self.schedule_wake();
@@ -3659,7 +3681,13 @@ impl App {
             self.gfx.prepare_glass(&p, canvas_px);
             Some(p)
         } else {
-            self.gfx.set_look(poni_core::look::of(self.st.settings.theme));
+            // A2 Wonderland Sky: shift ground colour by time of day when enabled
+            let look = if self.st.settings.langit_wonderland {
+                poni_core::look::sky_look(self.st.local.hour as u8)
+            } else {
+                poni_core::look::of(self.st.settings.theme)
+            };
+            self.gfx.set_look(look);
             None
         };
         let (repaint, anim, focus, ui_live) = match self.gfx.begin(dirty) {
@@ -3687,6 +3715,20 @@ impl App {
                     } else {
                         canvas.notch(body, geom.r, SHOULDER, island_color, border);
                     }
+                }
+
+                // A2 Wonderland Sky: subtle time-of-day SVG sky ornaments clipped to the island outline
+                if self.st.settings.langit_wonderland && !hidden_idle && matches!(mode, Mode::Idle | Mode::Expanded(_)) {
+                    canvas.clip(body);
+                    if floating {
+                        canvas.push_outline_mask(&pill::shape::segments(body, geom.r));
+                    } else {
+                        canvas.push_shape_mask(body, geom.r, SHOULDER);
+                    }
+                    let burst = crate::sky::burst_progress(self.st.ui.sky_burst_at, now);
+                    crate::sky::draw(&mut canvas, body, self.st.local.hour as u8, self.st.local.minute as u8, self.expanded, burst);
+                    canvas.pop_shape_mask();
+                    canvas.unclip();
                 }
 
                 // Content scales about the top centre, where the island hangs
@@ -4680,6 +4722,7 @@ impl App {
                     }
                 }
                 Command::OpenPath(p) => shell::open(&p),
+                Command::OpenLauncher(t) => shell::open_launcher_uri(&t),
                 Command::RevealPath(p) => shell::reveal(&p),
                 Command::DragOut(paths) => deferred.push(Deferred::DragOut(paths)),
                 Command::LoadThumb(p) => {
@@ -4834,6 +4877,7 @@ impl App {
                 }
                 if changed {
                     self.st.cmd(Command::SaveSettings);
+                    self.layout_surface();
                 }
             }
             NotifyEvent::Seen(seen) => {
@@ -4842,6 +4886,7 @@ impl App {
                     self.st.cmd(Command::SaveSettings);
                 }
                 // Record in session history regardless of toggle (newest first, max 5).
+                let old_len = self.st.settings.notifications.history.len();
                 {
                     use poni_core::notifications::{HistoryEntry, MAX_HISTORY};
                     let title = seen.lines.first().cloned().unwrap_or_default();
@@ -4850,6 +4895,9 @@ impl App {
                     let h = &mut self.st.settings.notifications.history;
                     h.insert(0, entry);
                     h.truncate(MAX_HISTORY);
+                }
+                if changed || self.st.settings.notifications.history.len() != old_len {
+                    self.layout_surface();
                 }
                 // Nobody would see it: Windows keeps it in its own list.
                 if !shows || self.locked || self.display_off {
@@ -5444,7 +5492,10 @@ fn draw_content(
 ) -> (bool, bool, Option<bool>, bool) {
     let mut ui = Ui::new(c, input, hits, now);
     match mode {
-        Mode::Expanded(page) => pages::draw_expanded(&mut ui, st, lay, page, transition),
+        Mode::Expanded(page) => {
+            crate::sky::hit(&mut ui, st, lay);
+            pages::draw_expanded(&mut ui, st, lay, page, transition)
+        }
         _ => activities::draw(&mut ui, st, &mode, body),
     }
     (ui.repaint_requested(), ui.anim_requested(), ui.focus_request(), ui.live_requested())

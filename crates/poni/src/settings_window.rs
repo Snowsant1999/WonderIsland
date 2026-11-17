@@ -233,6 +233,9 @@ pub enum Key {
     Clock24,
     SystemHistory,
     IdleLook,
+    DrinkMe,
+    RabbitHole,
+    LangitWonderland,
     HoverDelay,
     CloseDelay,
     Width,
@@ -407,6 +410,14 @@ pub fn blocks(section: Section, st: &AppState) -> Vec<Block> {
                     Some("Island at rest"),
                     vec![item(Key::IdleLook, "Idle look", Some("What the closed island shows"), Ctl::Choice(look_names, looks.iter().position(|l| *l == shown)))],
                 ),
+                Block::Group(
+                    Some("Wonderland"),
+                    vec![
+                        switch(Key::LangitWonderland, "Wonderland Sky", Some("Shift island palette by time of day (morning, noon, dusk, night)"), s.langit_wonderland),
+                        switch(Key::DrinkMe, "Drink Me (compact island)", Some("Shrink the closed island (Ctrl+Shift+M)"), s.drink_me),
+                        switch(Key::RabbitHole, "Rabbit hole fall", Some("Play Alice's falling entrance on startup and first open"), s.rabbit_hole_fall),
+                    ],
+                ),
             ]
         }
         Section::Island => {
@@ -563,6 +574,9 @@ pub fn apply(st: &mut AppState, key: Key, act: Act) {
                 _ => return,
             }
         }
+        Key::DrinkMe => s.drink_me = !s.drink_me,
+        Key::RabbitHole => s.rabbit_hole_fall = !s.rabbit_hole_fall,
+        Key::LangitWonderland => s.langit_wonderland = !s.langit_wonderland,
         Key::HoverDelay => match act {
             Act::Pick(i) if i < HOVER.len() => s.hover_delay_ms = HOVER[i].0,
             _ => return,

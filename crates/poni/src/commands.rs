@@ -164,6 +164,8 @@ pub enum Command {
     Media(MediaCmd),
     /// Open a file/folder with its default handler.
     OpenPath(String),
+    /// Open a Rabbit Hole Launcher shortcut (allow-listed URI scheme, URL, or path).
+    OpenLauncher(String),
     /// Show a file in Explorer.
     RevealPath(String),
     /// Begin an OLE drag of these paths out of the island.

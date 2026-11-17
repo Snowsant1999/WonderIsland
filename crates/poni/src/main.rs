@@ -49,6 +49,8 @@ mod pages;
 #[cfg(any(windows, target_os = "macos"))]
 mod pill;
 #[cfg(windows)]
+mod sky;
+#[cfg(windows)]
 mod paths;
 #[cfg(any(windows, target_os = "macos"))]
 mod png;
