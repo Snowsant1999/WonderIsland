@@ -1075,7 +1075,8 @@ impl App {
                         // Clicking Alice in the collapsed pill triggers her happy hop without expanding.
                         self.input.pressed_id = None;
                         self.cancel_hover();
-                        self.st.ui.alice_react_at = Some(self.st.now);
+                        let now = self.st.now;
+                        activities::start_alice_react(&mut self.st, now);
                     } else if let Some(cmd) = match self.input.pressed_id {
                         Some(id) if id == wid("pill.media.prev") => Some(MediaCmd::Prev),
                         Some(id) if id == wid("pill.media.pp") => Some(MediaCmd::PlayPause),

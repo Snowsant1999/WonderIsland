@@ -343,8 +343,12 @@ pub struct PageUiState {
     pub sky_burst_at: Option<f64>,
     /// Alice mascot click-reaction start time (mono seconds), if active.
     pub alice_react_at: Option<f64>,
+    /// When the pointer started resting on the collapsed media pill (fades its buttons in).
+    pub media_hover_since: Option<f64>,
     /// Rabbit Hole Launcher input field buffer.
     pub launcher_input: String,
+    /// A short line under the launcher's input (why a shortcut wasn't added) and when it lapses.
+    pub launcher_note: Option<(String, f64)>,
     /// Header tab under the pointer and since when (for hover labels).
     pub tab_hover: Option<(usize, f64)>,
     /// Oyen in the Oyenza tab: his last move of his own and when it started

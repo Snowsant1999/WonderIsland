@@ -79,6 +79,13 @@ fn is_allowed_launcher_uri(target: &str) -> bool {
     LAUNCHER_SCHEMES.iter().any(|s| lower.starts_with(s) && t.len() > s.len())
 }
 
+/// Would [`open_launcher_uri`] accept this target? (The Launcher page checks
+/// a shortcut as it is added, so a refused one says so then, not at the click.)
+pub fn launcher_target_ok(target: &str) -> bool {
+    let t = target.trim();
+    is_allowed_launcher_uri(t) || classify(t).is_ok()
+}
+
 /// Open a Rabbit Hole Launcher target: allows explicit game/app launcher URIs
 /// in [`LAUNCHER_SCHEMES`] as well as standard [`open`] paths and http(s) URLs.
 pub fn open_launcher_uri(target: &str) {

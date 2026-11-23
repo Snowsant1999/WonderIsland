@@ -130,17 +130,62 @@ fn draw_cloud_bank(c: &mut Canvas, body: Rect, color: Color, puffs: &[(f32, f32,
     }
 }
 
+/// Where the sun or moon sits in the open card (the same spot `draw` paints
+/// it at), so the click target follows the ornament instead of a fixed corner.
+fn ornament_center(body: Rect, hour: u8, minute: u8) -> Point {
+    let t = phase_progress(hour, minute);
+    let drift = (t - 0.5) * 26.0;
+    match phase(hour) {
+        Phase::Morning => Point::new(body.right() - 48.0 + drift * 0.5, body.bottom() - 18.0 - t * 8.0),
+        Phase::Noon => Point::new(body.right() - 52.0 + drift * 0.7, body.bottom() - 22.0),
+        Phase::Dusk => Point::new(body.right() - 56.0 + drift * 0.5, body.bottom() - 12.0 + t * 4.0),
+        Phase::Night => Point::new(body.right() - 56.0 + drift * 0.4, body.y + body.h * 0.34),
+    }
+}
+
+/// Top and bottom colours of a phase's sky gradient.
+fn phase_colors(p: Phase) -> (Color, Color) {
+    match p {
+        Phase::Morning => (Color::hex(0xCBE4FB), Color::hex(0xFFF3DB)),
+        Phase::Noon => (Color::hex(0xB8DCFA), Color::hex(0xEFF7FF)),
+        Phase::Dusk => (Color::hex(0xF5C299), Color::hex(0xFCE7CE)),
+        Phase::Night => (Color::hex(0x1B2352), Color::hex(0x2F3A7A)),
+    }
+}
+
+/// Minutes over which the sky eases into a new phase.
+const FADE_MIN: f32 = 20.0;
+
+/// The gradient to paint now. Morning→noon and noon→dusk blend from the
+/// previous phase over [`FADE_MIN`] minutes. The night boundaries (20:00 and
+/// 05:00) switch at once: the ink flips between dark and light there, and a
+/// half-blended sky would leave the text unreadable.
+fn sky_gradient(hour: u8, minute: u8) -> (Color, Color) {
+    let (top, bot) = phase_colors(phase(hour));
+    let since = |start: u8| (hour as f32 - start as f32) * 60.0 + minute as f32;
+    let blend = match phase(hour) {
+        Phase::Noon => Some((Phase::Morning, since(10))),
+        Phase::Dusk => Some((Phase::Noon, since(17))),
+        _ => None,
+    };
+    match blend {
+        Some((prev, m)) if (0.0..FADE_MIN).contains(&m) => {
+            let k = m / FADE_MIN;
+            let (pt, pb) = phase_colors(prev);
+            (Color::lerp(pt, top, k), Color::lerp(pb, bot, k))
+        }
+        _ => (top, bot),
+    }
+}
+
 /// Register a background click target over the sky ornament in expanded mode.
 /// Must be called before page widgets so foreground buttons retain click priority.
 pub fn hit(ui: &mut Ui, st: &mut AppState, body: Rect) {
     if !st.settings.langit_wonderland || body.w < 120.0 || body.h < 80.0 {
         return;
     }
-    let p = phase(st.local.hour as u8);
-    let r = match p {
-        Phase::Night => Rect::new(body.right() - 108.0, body.y + 44.0, 96.0, 72.0),
-        _ => Rect::new(body.right() - 108.0, body.bottom() - 78.0, 96.0, 72.0),
-    };
+    let center = ornament_center(body, st.local.hour as u8, st.local.minute as u8);
+    let r = Rect::from_center(center, 76.0, 76.0);
     if ui.button(wid("sky.ornament"), r).clicked {
         st.ui.sky_burst_at = Some(ui.now);
         ui.request_anim();
@@ -164,13 +209,8 @@ pub fn draw(c: &mut Canvas, body: Rect, hour: u8, minute: u8, expanded: bool, bu
     let sky_r = body.inset(0.5, 0.5);
 
     c.unthemed(|c| {
-        // 1. Vertical sky gradient
-        let (top_c, bot_c) = match p {
-            Phase::Morning => (Color::hex(0xCBE4FB), Color::hex(0xFFF3DB)),
-            Phase::Noon => (Color::hex(0xB8DCFA), Color::hex(0xEFF7FF)),
-            Phase::Dusk => (Color::hex(0xF5C299), Color::hex(0xFCE7CE)),
-            Phase::Night => (Color::hex(0x1B2352), Color::hex(0x2F3A7A)),
-        };
+        // 1. Vertical sky gradient (eased between phases where the ink allows)
+        let (top_c, bot_c) = sky_gradient(hour, minute);
         c.fill_linear_gradient(sky_r, top_c, bot_c);
 
         if expanded {
@@ -301,9 +341,32 @@ pub fn draw(c: &mut Canvas, body: Rect, hour: u8, minute: u8, expanded: bool, bu
                     );
                 }
             }
+            // Morning and dusk: a few sparkles float up from the sun on click.
+            if let (Some(u), Phase::Morning | Phase::Dusk) = (burst, p) {
+                let origin = ornament_center(body, hour, minute);
+                let alpha = (u * PI).sin().clamp(0.0, 1.0);
+                let tint = if p == Phase::Morning { Color::hex(0xFFE08A) } else { Color::white(1.0) };
+                for (i, dx) in [-22.0f32, -8.0, 9.0, 24.0].into_iter().enumerate() {
+                    let rise = u * (34.0 + 7.0 * i as f32);
+                    let sc = Point::new(origin.x + dx, origin.y - 14.0 - rise);
+                    c.path(&transform(&g.star, sc, 7.0 - i as f32 * 0.6), Some(tint.with_alpha(0.85 * alpha)), None);
+                }
+            }
         } else {
-            // Collapsed idle pill: subtle corner accent on the right edge
+            // Collapsed idle pill: soft cloud/star texture plus a corner accent
             let drift = (t - 0.5) * 5.0;
+            match p {
+                Phase::Night => {
+                    for (x, y, sz) in [(0.30, 0.30, 4.5), (0.62, 0.72, 4.0), (0.80, 0.28, 3.5)] {
+                        let sc = Point::new(body.x + body.w * x, body.y + body.h * y);
+                        c.path(&transform(&g.star, sc, sz), Some(Color::hex(0xFFF2B8).with_alpha(0.38)), None);
+                    }
+                }
+                _ => {
+                    let puff = if p == Phase::Dusk { Color::hex(0xFDE5C8).with_alpha(0.45) } else { Color::white(0.42) };
+                    draw_cloud_bank(c, body, puff, &[(0.34, -2.0, 7.0), (0.46, -3.0, 8.0), (0.58, -2.0, 7.0)]);
+                }
+            }
             match p {
                 Phase::Morning => {
                     let sun_c = Point::new(body.right() - 15.0 + drift, body.center().y - 1.0);
@@ -334,6 +397,32 @@ pub fn draw(c: &mut Canvas, body: Rect, hour: u8, minute: u8, expanded: bool, bu
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_sky_eases_in_after_morning_and_noon_but_switches_at_once_at_night() {
+        let (noon_top, noon_bot) = phase_colors(Phase::Noon);
+        let (morn_top, _) = phase_colors(Phase::Morning);
+        // 10:00 still wears the morning's colours, 10:20 is fully noon.
+        assert_eq!(sky_gradient(10, 0).0, morn_top);
+        assert_eq!(sky_gradient(10, 20), (noon_top, noon_bot));
+        let mid = sky_gradient(10, 10).0;
+        assert_ne!(mid, morn_top);
+        assert_ne!(mid, noon_top);
+        // The night's boundaries never blend (the ink flips there).
+        assert_eq!(sky_gradient(20, 0), phase_colors(Phase::Night));
+        assert_eq!(sky_gradient(5, 0), phase_colors(Phase::Morning));
+    }
+
+    #[test]
+    fn the_click_target_follows_the_ornament() {
+        let body = Rect::new(0.0, 0.0, 620.0, 240.0);
+        for h in [6u8, 12, 18, 22] {
+            let c = ornament_center(body, h, 30);
+            assert!(body.contains(c), "hour {h}: {c:?}");
+        }
+        // The moon sits high, the sun low.
+        assert!(ornament_center(body, 22, 0).y < ornament_center(body, 12, 0).y);
+    }
 
     #[test]
     fn sky_glyphs_parse_cleanly() {

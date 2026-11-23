@@ -100,7 +100,19 @@ fn rest_eyes(now: f64, night: bool, look: Option<f32>, eyes: f64) -> (Frame, boo
 /// How long Alice's click-reaction lasts (seconds).
 pub const REACT_SECS: f64 = 1.1;
 
-/// Playful happy hop + wiggle when Alice is clicked in the collapsed pill.
+/// Which of Alice's three reactions a click at `t0` gets: a hop, a wiggle or
+/// a big jump. Picked from the click's time, so no random source is needed.
+pub fn react_variant(t0: f64) -> u8 {
+    ((t0 * 1000.0) as u64 % 3) as u8
+}
+
+/// Is a reaction still playing at `now`? (A click during one is ignored.)
+pub fn reacting(now: f64, react_at: Option<f64>) -> bool {
+    react_at.is_some_and(|t0| (0.0..REACT_SECS).contains(&(now - t0)))
+}
+
+/// Playful reaction when Alice is clicked in the collapsed pill: a hop, a
+/// wiggle or a big jump (`react_variant`), with a happy face.
 /// Returns `None` once the reaction finishes so the island returns to rest.
 pub fn react(now: f64, react_at: Option<f64>) -> Option<(Frame, f32)> {
     let t0 = react_at?;
@@ -109,9 +121,15 @@ pub fn react(now: f64, react_at: Option<f64>) -> Option<(Frame, f32)> {
         return None;
     }
     let u = (elapsed / REACT_SECS) as f32;
-    let env = (u * std::f32::consts::PI).sin().clamp(0.0, 1.0);
-    let hop = ((u * 2.0 * std::f32::consts::PI).sin().abs()) * 6.5 * env;
-    let tilt = (u * 4.0 * std::f32::consts::PI).sin() * 9.0 * env;
+    let pi = std::f32::consts::PI;
+    let env = (u * pi).sin().clamp(0.0, 1.0);
+    let (hop_h, tilt_deg, tilt_beats) = match react_variant(t0) {
+        0 => (6.5, 9.0, 2.0),
+        1 => (1.5, 17.0, 3.0),
+        _ => (10.0, 4.0, 1.0),
+    };
+    let hop = ((u * 2.0 * pi).sin().abs()) * hop_h * env;
+    let tilt = (u * tilt_beats * 2.0 * pi).sin() * tilt_deg * env;
     let mut f = oyen::frame(Mood::Happy, elapsed.rem_euclid(Mood::Happy.loop_secs()), Input::default(), SMALL_EYES);
     f.head = f.head.then(Affine::rotation_about(tilt as f64, oyen::Point::new(0.0, oyen::CHIN)))
         .then(Affine::translation(0.0, -hop as f64));
@@ -656,6 +674,15 @@ mod tests {
     fn the_note_drawings_parse() {
         assert!(glyph(false).len() > 8);
         assert!(glyph(true).len() > 12);
+    }
+
+    #[test]
+    fn alice_reacts_three_ways_and_ignores_clicks_while_reacting() {
+        let kinds: std::collections::BTreeSet<u8> = (0..30).map(|i| react_variant(10.0 + i as f64 * 0.001)).collect();
+        assert_eq!(kinds.len(), 3);
+        assert!(reacting(10.5, Some(10.0)));
+        assert!(!reacting(10.0 + REACT_SECS + 0.01, Some(10.0)));
+        assert!(!reacting(10.0, None));
     }
 
     #[test]

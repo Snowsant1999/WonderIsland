@@ -747,19 +747,20 @@ mod tests {
     }
 
     #[test]
-    fn the_row_is_the_island_s_own_pages_then_oyenza_then_the_plus() {
-        // Music, then Today beside it; Focus where Today was; AI after it;
-        // Oyenza last, signed in or not.
+    fn the_row_is_the_island_s_own_pages_then_the_launcher_and_ai_then_the_plus() {
+        // Music, then Today beside it; Focus where Today was; the Rabbit Hole
+        // launcher and AI after it. Oyenza has no tab in WonderIsland, signed
+        // in or not.
         use PageKind::*;
         let mut st = state();
-        assert_eq!(tabs(&st), [Media, Today, Shelf, Tasks, Focus, Ai, Addons]);
+        assert_eq!(tabs(&st), [Media, Today, Shelf, Tasks, Focus, Launcher, Ai, Addons]);
         st.oyenza.link = OyenzaLink::Connected { account: "a•••@example.com".into() };
-        assert_eq!(tabs(&st), [Media, Today, Shelf, Tasks, Focus, Ai, Addons]);
-        // The add-ons' pages come after Oyenza (Health, Oyenza's steps, first), before the "+".
+        assert_eq!(tabs(&st), [Media, Today, Shelf, Tasks, Focus, Launcher, Ai, Addons]);
+        // The add-ons' pages come after AI (Health first), before the "+".
         for id in ["system", "script", "health"] {
             st.addons.insert(id, poni_core::addons::Status::Ready);
         }
-        assert_eq!(&tabs(&st)[5..], [Health, System, Script, Addons]);
+        assert_eq!(&tabs(&st)[6..], [Ai, Health, System, Script, Addons]);
         // Clipboard left the app: an island last open there opens on Music.
         assert_eq!(PageKind::from_key("clipboard"), Media);
     }
@@ -770,20 +771,20 @@ mod tests {
         let mut st = state();
         st.settings.hidden_tabs = vec!["today".into(), "tasks".into(), "oyenza".into(), "addons".into()];
         st.page = Focus;
-        // AI, Oyenza and the "+" can't be hidden.
-        assert_eq!(tabs(&st), [Media, Shelf, Focus, Ai, Addons]);
+        // AI and the "+" can't be hidden.
+        assert_eq!(tabs(&st), [Media, Shelf, Focus, Launcher, Ai, Addons]);
         assert_eq!(first_tab(&st), Media);
         // Opened from elsewhere (a meeting's notice opens Today): its tab
         // shows while it's open, and stepping on leaves it behind.
         st.page = Today;
-        assert_eq!(tabs(&st), [Media, Today, Shelf, Focus, Ai, Addons]);
+        assert_eq!(tabs(&st), [Media, Today, Shelf, Focus, Launcher, Ai, Addons]);
         st.page = step_tab(Today, &st, true);
         assert_eq!(st.page, Shelf);
         assert!(!tabs(&st).contains(&Today));
         // Every one of them hidden: the island opens on AI.
         st.settings.hidden_tabs = PageKind::HIDEABLE.iter().map(|p| p.key().to_string()).collect();
         st.page = Ai;
-        assert_eq!(tabs(&st), [Ai, Oyenza, Addons]);
+        assert_eq!(tabs(&st), [Ai, Addons]);
         assert_eq!(first_tab(&st), Ai);
         // A start on a hidden page opens on the first tab instead.
         let mut settings = poni_core::settings::Settings::default();
@@ -797,10 +798,10 @@ mod tests {
     fn settings_has_the_gear_not_a_tab() {
         let mut st = state();
         assert!(!tabs(&st).contains(&PageKind::Settings));
-        assert!(tabs(&st).contains(&PageKind::Oyenza), "signed out it's where to sign in");
+        assert!(!tabs(&st).contains(&PageKind::Oyenza), "WonderIsland has no Oyenza tab");
         st.oyenza.link = OyenzaLink::Connected { account: "a•••@example.com".into() };
         let row = tabs(&st);
-        assert!(row.contains(&PageKind::Oyenza) && !row.contains(&PageKind::Settings));
+        assert!(!row.contains(&PageKind::Oyenza) && !row.contains(&PageKind::Settings));
         // Stepping through the tabs never lands on Settings.
         let mut p = PageKind::Media;
         for _ in 0..2 * PageKind::ALL.len() {
@@ -936,12 +937,12 @@ mod tests {
 
     #[test]
     fn ielts_has_a_tab_only_while_its_add_on_is_on_after_health() {
-        use PageKind::{Addons, Health, Ielts, Oyenza};
+        use PageKind::{Addons, Ai, Health, Ielts};
         let mut st = state();
         assert!(!tabs(&st).contains(&Ielts), "off for everyone until switched on");
         st.addons.insert("ielts", poni_core::addons::Status::Ready);
         st.addons.insert("health", poni_core::addons::Status::Ready);
-        assert_eq!(&tabs(&st)[5..], [Oyenza, Health, Ielts, Addons]);
+        assert_eq!(&tabs(&st)[6..], [Ai, Health, Ielts, Addons]);
         // Signed out it shows the sign-in card; signed in, every state is as
         // tall, and never taller than System: the window keeps its size.
         let signed_out = content_height(Ielts, &st);

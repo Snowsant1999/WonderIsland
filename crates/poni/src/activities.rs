@@ -401,13 +401,13 @@ pub(crate) fn night(st: &AppState) -> bool {
 fn draw_oyen_rest(ui: &mut Ui, st: &mut AppState, body: Rect, cx: f32, w: f32, bar_y: f32) {
     let hit_r = Rect::new(cx - w * 0.55, body.y + 1.0, w * 1.1, (bar_y - body.y - 1.0).max(16.0));
     if ui.button(wid("alice.pet"), hit_r).clicked {
-        st.ui.alice_react_at = Some(ui.now);
+        start_alice_react(st, ui.now);
         ui.request_anim();
     }
     if let Some((frame, u)) = oyen::react(st.now, st.ui.alice_react_at) {
         ui.request_anim();
         oyen::peek(ui.c, &frame, cx, bar_y, w, body.y + 1.0);
-        draw_react_hearts(ui, cx, bar_y, w, u);
+        draw_react_hearts(ui, cx, bar_y, w, u, oyen::react_variant(st.ui.alice_react_at.unwrap_or(0.0)));
         return;
     }
     st.ui.alice_react_at = None;
@@ -419,12 +419,27 @@ fn draw_oyen_rest(ui: &mut Ui, st: &mut AppState, body: Rect, cx: f32, w: f32, b
     oyen::peek(ui.c, &frame, cx, bar_y, w, body.y + 1.0);
 }
 
-fn draw_react_hearts(ui: &mut Ui, cx: f32, bar_y: f32, w: f32, u: f32) {
+/// Start Alice's click-reaction, unless one is still playing (rapid clicks
+/// are ignored). A soft chime goes with it while Sounds is on.
+pub(crate) fn start_alice_react(st: &mut AppState, now: f64) {
+    if oyen::reacting(now, st.ui.alice_react_at) {
+        return;
+    }
+    st.ui.alice_react_at = Some(now);
+    if st.settings.sounds {
+        st.cmd(Command::Play(crate::commands::Sound::Chime));
+    }
+}
+
+fn draw_react_hearts(ui: &mut Ui, cx: f32, bar_y: f32, w: f32, u: f32, variant: u8) {
     let alpha = (u * std::f32::consts::PI).sin().clamp(0.0, 1.0);
-    let heart_c = Color::hex(0xE85D75).with_alpha(alpha);
+    // Hearts for the hop and the big jump, gold diamonds for the wiggle.
+    let (icon, tint) = if variant == 1 { (Icon::Diamond, Color::hex(0xD9A93A)) } else { (Icon::Heart, Color::hex(0xE85D75)) };
+    let heart_c = tint.with_alpha(alpha);
+    let size = if variant == 2 { 1.25 } else { 1.0 };
     for (dx, speed, sz) in [(-w * 0.38, 13.0, 7.0), (w * 0.36, 16.0, 5.5)] {
         let p = Point::new(cx + dx, bar_y - 12.0 - u * speed);
-        ui.c.icon(Icon::Heart, Rect::from_center(p, sz, sz), heart_c);
+        ui.c.icon(icon, Rect::from_center(p, sz * size, sz * size), heart_c);
     }
 }
 
@@ -584,28 +599,31 @@ fn draw_peek(ui: &mut Ui, st: &AppState, x0: f32, x1: f32, body: Rect, alpha: f3
 }
 
 /// Thin 2 DIP progress bar along the bottom edge of a collapsed pill (P2A).
-fn draw_bottom_progress(ui: &mut Ui, body: Rect, frac: f32, col: Color) {
+/// The part already played is bright; a paused player dims the whole bar.
+fn draw_bottom_progress(ui: &mut Ui, body: Rect, frac: f32, col: Color, playing: bool) {
     let inset = 14.0;
     let w = (body.w - 2.0 * inset).max(0.0);
     if w <= 4.0 {
         return;
     }
+    let dim = if playing { 1.0 } else { 0.55 };
     let bar = Rect::new(body.x + inset, body.bottom() - 2.5, w, 2.0);
-    ui.c.fill_rrect(bar, 1.0, Color::white(0.14));
+    ui.c.fill_rrect(bar, 1.0, Color::white(0.14 * dim));
     let fw = (w * frac.clamp(0.0, 1.0)).max(2.0);
     if frac > 0.001 {
-        ui.c.fill_rrect(Rect::new(bar.x, bar.y, fw, bar.h), 1.0, col.with_alpha(0.88));
+        ui.c.fill_rrect(Rect::new(bar.x, bar.y, fw, bar.h), 1.0, col.with_alpha(0.88 * dim));
     }
 }
 
 /// Compact media transport buttons shown when hovering the collapsed media pill (P2B).
+/// The buttons shrink to fit a narrow pill (never below 12 DIP, which needs 40 DIP of room).
 fn draw_mini_media_controls(ui: &mut Ui, st: &mut AppState, left: f32, right: f32, cy: f32, playing: bool) -> bool {
     let room = right - left;
-    if room < 56.0 {
+    if room < 40.0 {
         return false;
     }
-    let btn_sz = 18.0;
-    let gap = 4.0;
+    let gap = if room < 56.0 { 2.0 } else { 5.0 };
+    let btn_sz = ((room - 2.0 * gap) / 3.0).clamp(12.0, 19.0);
     let total_w = btn_sz * 3.0 + gap * 2.0;
     let x0 = (left + right - total_w) / 2.0;
     let bg = Rect::new(x0 - 4.0, cy - btn_sz / 2.0 - 1.0, total_w + 8.0, btn_sz + 2.0);
@@ -620,7 +638,7 @@ fn draw_mini_media_controls(ui: &mut Ui, st: &mut AppState, left: f32, right: f3
     for (i, (id, icon, cmd, enabled)) in defs.into_iter().enumerate() {
         let r = Rect::new(x0 + i as f32 * (btn_sz + gap), cy - btn_sz / 2.0, btn_sz, btn_sz);
         let col = if enabled { palette::TEXT } else { palette::TEXT_FAINT };
-        let resp = ui.icon_button(wid(id), r, icon, col, 11.0);
+        let resp = ui.icon_button(wid(id), r, icon, col, btn_sz * 0.6);
         if enabled && resp.clicked {
             st.cmd(Command::Media(cmd));
         }
@@ -655,13 +673,13 @@ pub fn draw_music(ui: &mut Ui, st: &mut AppState, body: Rect, words: bool) {
         let w = OYEN_MEDIA_W * (body.h / 32.0).min(1.0);
         let hit_r = Rect::new(cx - w * 0.55, body.y + 1.0, w * 1.1, (bar_y - body.y - 1.0).max(16.0));
         if ui.button(wid("alice.pet"), hit_r).clicked {
-            st.ui.alice_react_at = Some(ui.now);
+            start_alice_react(st, ui.now);
             ui.request_anim();
         }
         if let Some((f, u)) = oyen::react(st.now, st.ui.alice_react_at) {
             ui.request_anim();
             oyen::peek(ui.c, &f, cx, bar_y, w, body.y + 1.0);
-            draw_react_hearts(ui, cx, bar_y, w, u);
+            draw_react_hearts(ui, cx, bar_y, w, u, oyen::react_variant(st.ui.alice_react_at.unwrap_or(0.0)));
         } else {
             st.ui.alice_react_at = None;
             let f = oyen::music(st.now, playing, st.media_paused_at);
@@ -670,17 +688,40 @@ pub fn draw_music(ui: &mut Ui, st: &mut AppState, body: Rect, words: bool) {
     } else {
         equalizer(ui, eq, st.media_accent(), playing, st.now);
     }
-    let hover_controls = words && ui.input.mouse.is_some_and(|p| body.contains(p)) && draw_mini_media_controls(ui, st, art.right() + 6.0, eq.x - 6.0, cy, playing);
-    if !hover_controls {
+    // Hovering the pill fades the transport buttons in over the title or the
+    // sung line (the words fade out as they arrive).
+    let hovering = words && ui.input.mouse.is_some_and(|p| body.contains(p));
+    let k = if hovering {
+        let since = *st.ui.media_hover_since.get_or_insert(st.now);
+        ((st.now - since) / 0.15).clamp(0.0, 1.0) as f32
+    } else {
+        st.ui.media_hover_since = None;
+        0.0
+    };
+    let mut controls = false;
+    if hovering {
+        ui.c.set_alpha(k);
+        controls = draw_mini_media_controls(ui, st, art.right() + 6.0, eq.x - 6.0, cy, playing);
+        ui.c.set_alpha(1.0);
+        if controls && k < 1.0 {
+            ui.request_anim();
+        }
+    }
+    if !controls || k < 1.0 {
+        if controls {
+            ui.c.set_alpha(1.0 - k);
+        }
         if sings {
             use crate::pill::media::{middle, PAUSED_TEXT, TEXT_CLEAR};
             middle(ui, st, body, art.right() + TEXT_CLEAR, eq.x - TEXT_CLEAR, if playing { 1.0 } else { PAUSED_TEXT });
         } else if alpha > 0.01 {
             draw_peek(ui, st, art.right() + 10.0, eq.x - 10.0, body, alpha);
         }
+        ui.c.set_alpha(1.0);
     }
-    if let Some(m) = st.media.as_ref().filter(|m| m.timeline.has_duration()) {
-        draw_bottom_progress(ui, body, m.timeline.progress_at(st.now), st.media_accent());
+    // No bar for a live stream or a player that reports no length.
+    if let Some(m) = st.media.as_ref().filter(|m| m.timeline.has_duration() && m.timeline.duration_s < 6.0 * 3600.0) {
+        draw_bottom_progress(ui, body, m.timeline.progress_at(st.now), st.media_accent(), playing);
     }
 }
 
@@ -705,7 +746,7 @@ fn draw_activity(ui: &mut Ui, st: &mut AppState, a: Activity, body: Rect) {
             }
             let text = fmt_countdown(p.remaining(st.now));
             ui.c.text(&text, Rect::new(body.x + 40.0, body.y, 64.0, body.h), &countdown_style(col, paused));
-            draw_bottom_progress(ui, body, p.progress(st.now), col);
+            draw_bottom_progress(ui, body, p.progress(st.now), col, !paused);
         }
         Activity::Prayer => {
             // No Oyen here, in any theme: the moon, the minutes and OK only.
